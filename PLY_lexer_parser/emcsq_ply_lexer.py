@@ -1,116 +1,135 @@
+from sys import argv
 import ply.lex as lex
 
-tokens = (
-    'EMCSQ', 'SLCOMMENT', 'COMMENTST', 'STRING', 'SEMICOLON', 'LPAREN', 'RPAREN', 'LBRACK', 'RBRACK', 'LCBRACE', 'RCBRACE', 'ARROWED', 'COMMA', 'DOT', 'ASSIGN', 'OP','ID','NUMBER',
-    )
+# script, input_script = argvs
+input_script = """
+//: please ignore
+this ://
+\/ list listA = [1,2,3,4,5];
+\/ int num1 = 5;
+\/ int num2 = 10;
 
-# Tokens
+fun (int x, int y) --> funName --> int {
+    call listThing itemin listA[-2]{
+        y = 3 + 4 * listThing;
+        return "some string here" + x;
+    }
+}
+
+(num1, num2) --> funName;
+"""
+
+# input_script = "a = 10 + 2 b = a * 3 log(b) c = (b + 10) * 3"
+
+# reserved words so the longest regex (ID) isn't used first and wrongly captured as an ID token
+reserved = {
+    'use' : 'USE',
+    'fun' : 'FUN',
+    'return' : 'RETURN',
+    'call' : 'CALL',
+    'itemin' : 'ITEMIN',
+    'log' : 'LOG',
+    'if' : 'IF',
+    'else' : 'ELSE',
+    'or' : 'OR',
+    'orif' : 'ORIF',
+    'and' : 'AND',
+    'not' : 'NOT',
+    'none' : 'TYNONE',
+    'int' : 'TYINT',
+    'string' : 'TYSTRING',
+    'list' : 'TYLIST',
+    'bool' : 'TYBOOL',
+    'map' : 'TYMAP',
+    'true' : 'TRUE',
+    'false' : 'FALSE',
+    'elif' : 'ELIF',
+    'startup' : 'STARTUP'
+}
+
+# declaring tokens
+tokens = [
+    'EMCSQ', 'SLCOMMENT', 'SEMICOLON', 'GLOBAL', 'STRING', 'LPAREN', 'RPAREN', 'LBRACK', 'RBRACK', 'LCBRACE', 'RCBRACE', 'DOT', 'COMMA', 'ARROWED', 'ASSIGN', 'PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'POWER', 'MODULO', 'LESS', 'GREATER', 'LESSEQ', 'GREATEQ', 'ISEQ', 'NOTEQ', 'ID','NUMBER',
+    ] + list(reserved.values())
+
+# token capturing
 """EASTER EGG SHENANIGANS...do I want to allow anything to be written within the brackets? If so, what happens with that?"""
 t_EMCSQ     = r'EmC\[\]'
-"""FIGURE OUT HOW TO DEAL WITH COMMENTS/LINECOUNT NOT IN THIS HACKY WAY"""
-t_SLCOMMENT = r'//'
-t_COMMENTST = r'//:[^://]*://'
-t_STRING    = r'("[^"]*")}(\'[^\']*\')'
+t_SLCOMMENT = r'//[^:][^\n]*'
 t_SEMICOLON = r';'
-t_LPAREN    = r'\('
-t_RPAREN    = r'\)'
+t_GLOBAL    = r'\\/'
+t_STRING      = r'("[^"]*")'  # |(\'[^']*\')' # must have line count
+
+t_LPAREN  = r'\('
+t_RPAREN  = r'\)'
 t_LBRACK    = r'\['
 t_RBRACK    = r'\]'
-t_LCBRACE   = r'{'
-t_RCBRACE   = r'}'
-t_ARROWED   = r'-->'
-t_COMMA     = r','
+t_LCBRACE    = r'\{'
+t_RCBRACE    = r'\}'
+
 t_DOT       = r'\.'
-t_ASSIGN    = r'=' # should this be kept out of the other ops?
-t_OP        = r'\+|-|\*|/|\^|%|<|>|>=|<=|==|!='
-t_ID        = r'[a-zA-Z_][a-zA-Z0-9_]*'
+t_COMMA     = r','
+t_ARROWED   = r'-->'   # or '->' ?
 
+t_ISEQ    = r'=='
+t_ASSIGN  = r'='
+t_PLUS    = r'\+'
+t_MINUS   = r'-'
+t_TIMES   = r'\*'
+t_DIVIDE  = r'/'
+t_POWER   = r'\^'
+t_MODULO  = r'%'
 
-""" THE OVERLY SPECIFIED TOKENS """
-# t_COMMENTST = r'//:'
-# t_COMMENTND = r'://'
-# t_string      = r'("[^"]*")}(\'[^']*\')'
-# t_SEMICOLON = r';'
-
-
-# t_LPAREN  = r'\('
-# t_RPAREN  = r'\)'
-# t_LBRACK    = r'\['
-# t_RBRACK    = r'\]'
-# t_LCBRACE    = r'\{'
-# t_RCBRACE    = r'\}'
-# t_DOT       = r'\.'
-# t_COMMA     = r','
-
-# t_FUN     = r'fun' # function
-# t_TAKES   = r'takes' # do I want this?
-# t_ARROWED   = r'-->'   # or '->' ?
-""" I MAY WANT TO REDO RETURN""" 
-# t_RETURN  = r'return' # <-- ?? for symmetry?
-""" I MAY WANT TO REDO USE""" 
-# t_USE     = r'use'
-
-# t_CALL    = r'call' # for loop 'for'
-# t_ITEMIN  = r'itemin' # for loop 'in'
-# t_LOG     = r'log' # print
-
-
-# t_IF      = r'if' 
-# t_ELSE    = r'else'
-# t_OR      = r'or' # 
-# t_ORIF    = r'orif'
-# t_AND     = r'and'
-# t_NOT     = r'not'
-
-# t_NONE    = r'none'
-# t_INT     = r'int'
-# t_STRING  = r'string'
-# t_LIST    = r'list'
-# t_BOOL    = r'bool'
-
-# t_PLUS    = r'\+'
-# t_MINUS   = r'-'
-# t_TIMES   = r'\*'
-# t_DIVIDE  = r'/'
-# t_ASSIGN  = r'='
-# t_NUMBER    = r'-?((\d+[\.\d+]?)|(\.\d+))' # should include neg/pos either '[nums]' or '[nums].[nums]' or '.[nums]''
+t_LESS      = r'<'
+t_GREATER   = r'>'
+t_LESSEQ    = r'<='
+t_GREATEQ   = r'>='
+t_NOTEQ     = r'!='
 
 """NOT USING NOW """
 "in"
 "not"
-"is"
 "<>"
 "<<"
 ">>"
 "~"
 "lambda"
 
-# fitted with nud method that returns symbol itself, uses lambda
-
+""" should carriage return \r really be ignored? """
 # Ignored characters
+t_ignore = ' \t\v\r' # ignres ALL whitespace (but not newlines, so those can be counted--just tabs, vertical tabs, and carriage returns)
 
-t_ignore = ' \t\v\r' # ALL whitespace 
+states = (
+    ('emcomment','exclusive'),
+)
 
-# why couldn't you ignore single line comments with this: t_ignore = r'/////:'
+t_emcomment_ignore = ' \t\v\r'
+
+# why couldn't you ignore single line comment with this: t_ignore = r'//:'
 """
 or perhaps you could ignore it with a definition that comes before all other definitions (though i suppose newline could mess that up because you'd NEED to make sure it was running first to be considered the right line...wait then doesn't that mean that this IGNORE thing going on here will make multi-line comments fuck up the newline count?! oh wow, you can use token.value.count('\n) even though it's being 'ignored'):
 
 def t_ONELCOMMENT(token):
-    r'////'
+    r'//'
     pass
 """
 
-def t_emcomment(token):
-    r'////:'
+def t_begin_emcomment(token):
+    r'//:'
     token.lexer.begin('emcomment')
 
 def t_emcomment_end(token):
-    r':////'
+    r'://'
     # makes sure to count lines
     "but why is this in END and not in the start of the state?"
     token.lexer.lineno += token.value.count('\n')
     # goes back to non-comment mode
     token.lexer.begin('INITIAL')
+
+def t_emcomment_error(token):
+    # skips over EVERYTHING you find until you get to the end of the comment
+    # this is similar to pass, but gathers up all the symbols so that you can count the newlines later at the t_emcomment_end part
+    token.lexer.skip(1)
 
 def t_newline(t):
     r'\n+'
@@ -121,99 +140,105 @@ def t_error(t):
     print("Illegal character '%s'" % t.value[0])
     t.lexer.skip(1)
 
+def t_ID(t):
+    r'[a-zA-Z_][a-zA-Z0-9_]*'
+    t.type = reserved.get(t.value,'ID')
+    return t
+
 def t_NUMBER(t):
-    r'-?((\d+[\.\d+]?)|(\.\d+))' # should include neg/pos either '[nums]' or '[nums].[nums]' or '.[nums]''
+    r'-?((\d+(\.\d+)?)|(\.\d+))' # should include neg/pos either '[nums]' or '[numss].[nums]' or '.[nums]''
     try:
         t.value = int(t.value)
     except ValueError:
         print("Integer value too large %d", t.value)
         t.value = 0
-    return float(t)
+    # return float(t)
     return t
 
     
 # Build the lexer
 emcsqlexer = lex.lex()
 
-input_script = """
-list listA = [1,2,3,4,5]
-fun funName takes (arg1, arg2) --> int {
-call x itemin listA[-2]{
-y = 3.5 + 4 * 10;
-EmC[];
-return "some string here";
-}
-}
-"""
-
+# def tokenize():
 emcsqlexer.input(input_script)
 
 # Tokenizer
+string_form = ''
+output = []
 pratt_form = []
 while True:
-    tok = lexer.token()
+    tok = emcsqlexer.token()
     if not tok: break
-    print tok
-    pratt_form += [(tok.type, tok.value)]
-    # print tok.type, tok.value, tok.line, tok.lexpos
+    # output.append(tok)
+    # pratt_form += [(tok.type, tok.value)]
+    string_form += "('%s', '%s')" % (tok.type, tok.value)
+    # print tok.type, tok.value, tok.lexpos
 # prints it in a way pratt parser could use
+print string_form
 print pratt_form
 
 
+def em_lexer(lexer,input_script):
+  lexer.input(input_script)
+  result = [ ] 
+  while True:
+    tok = lexer.token()
+    if not tok: break
+    result = result + [tok.type]
+  return result
+  
 
+# # Parsing rules
 
+# precedence = (
+#     ('left','PLUS','MINUS'),
+#     ('left','TIMES','DIVIDE'),
+#     ('right','UMINUS'),
+#     )
 
-# Parsing rules
+# # dictionary of names
+# names = { }
 
-precedence = (
-    ('left','PLUS','MINUS'),
-    ('left','TIMES','DIVIDE'),
-    ('right','UMINUS'),
-    )
+# def p_statement_assign(t):
+#     'statement : NAME EQUALS expression'
+#     names[t[1]] = t[3]
 
-# dictionary of names
-names = { }
+# def p_statement_expr(t):
+#     'statement : expression'
+#     print(t[1])
 
-def p_statement_assign(t):
-    'statement : NAME EQUALS expression'
-    names[t[1]] = t[3]
+# def p_expression_binop(t):
+#     '''expression : expression PLUS expression
+#                   | expression MINUS expression
+#                   | expression TIMES expression
+#                   | expression DIVIDE expression'''
+#     if t[2] == '+'  : t[0] = t[1] + t[3]
+#     elif t[2] == '-': t[0] = t[1] - t[3]
+#     elif t[2] == '*': t[0] = t[1] * t[3]
+#     elif t[2] == '/': t[0] = t[1] / t[3]
 
-def p_statement_expr(t):
-    'statement : expression'
-    print(t[1])
+# def p_expression_uminus(t):
+#     'expression : MINUS expression %prec UMINUS'
+#     t[0] = -t[2]
 
-def p_expression_binop(t):
-    '''expression : expression PLUS expression
-                  | expression MINUS expression
-                  | expression TIMES expression
-                  | expression DIVIDE expression'''
-    if t[2] == '+'  : t[0] = t[1] + t[3]
-    elif t[2] == '-': t[0] = t[1] - t[3]
-    elif t[2] == '*': t[0] = t[1] * t[3]
-    elif t[2] == '/': t[0] = t[1] / t[3]
+# def p_expression_group(t):
+#     'expression : LPAREN expression RPAREN'
+#     t[0] = t[2]
 
-def p_expression_uminus(t):
-    'expression : MINUS expression %prec UMINUS'
-    t[0] = -t[2]
+# def p_expression_number(t):
+#     'expression : NUMBER'
+#     t[0] = t[1]
 
-def p_expression_group(t):
-    'expression : LPAREN expression RPAREN'
-    t[0] = t[2]
+# def p_expression_name(t):
+#     'expression : NAME'
+#     try:
+#         t[0] = names[t[1]]
+#     except LookupError:
+#         print("Undefined name '%s'" % t[1])
+#         t[0] = 0
 
-def p_expression_number(t):
-    'expression : NUMBER'
-    t[0] = t[1]
-
-def p_expression_name(t):
-    'expression : NAME'
-    try:
-        t[0] = names[t[1]]
-    except LookupError:
-        print("Undefined name '%s'" % t[1])
-        t[0] = 0
-
-def p_error(t):
-    print("Syntax error at '%s'" % t.value)
+# def p_error(t):
+#     print("Syntax error at '%s'" % t.value)
 
 
 
