@@ -7,22 +7,27 @@ constants_list = []
 list_tuples_form = []
 
 # script, input_script = argvs
+
 input_script = """
-//: please ignore
-this ://
-\/ list listA = [1,2,3,4,5];
-\/ int num1 = 20;
-\/ int num2 = 10;
-
-fun (int x, int y) -> funName -> int {
-    call listThing itemin listA[-2]{
-        y = 283 + -29 * listThing;
-        return "some string here" + x;
-    }
-}
-
-(num1, num2) --> funName;
+a href src
 """
+
+# input_script = """
+# //: please ignore
+# this ://
+# \/ list listA = [1,2,3,4,5];
+# \/ int num1 = 20;
+# \/ int num2 = 10;
+
+# fun (int x, int y) -> funName -> int {
+#     call listThing itemin listA[-2]{
+#         y = 283 + -29 * listThing;
+#         return "some string here" + x;
+#     }
+# }
+
+# (num1, num2) --> funName;
+# """
 
 # input_script = "a = 10 + 2 b = a * 3 log(b) c = (b + 10) * 3"
 
@@ -52,113 +57,10 @@ reserved = {
     'startup' : 'STARTUP'
 }
 
-# declaring tokens
+# declaring token names, including reserved keywords
 tokens = [
     'EMCSQ', 'SLCOMMENT', 'SEMICOLON', 'GLOBAL', 'STRING', 'LPAREN', 'RPAREN', 'LBRACK', 'RBRACK', 'LCBRACE', 'RCBRACE', 'DOT', 'COMMA', 'ARROWED', 'ASSIGN', 'PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'POWER', 'MODULO', 'LESS', 'GREATER', 'LESSEQ', 'GREATEQ', 'ISEQ', 'NOTEQ', 'ID','NUMBER',
     ] + list(reserved.values())
-
-# token capturing
-"""EASTER EGG SHENANIGANS...do I want to allow anything to be written within the brackets? If so, what happens with that?"""
-t_EMCSQ     = r'EmC\[\]'
-t_SLCOMMENT = r'//[^:][^\n]*'
-t_SEMICOLON = r';'
-t_GLOBAL    = r'\\/'
-t_STRING      = r'("[^"]*")'  # |(\'[^']*\')' # must have line count
-
-t_LPAREN  = r'\('
-t_RPAREN  = r'\)'
-t_LBRACK    = r'\['
-t_RBRACK    = r'\]'
-t_LCBRACE    = r'\{'
-t_RCBRACE    = r'\}'
-
-t_DOT       = r'\.'
-t_COMMA     = r','
-t_ARROWED   = r'->'   # or '->' ?
-
-t_ISEQ    = r'=='
-t_ASSIGN  = r'='
-t_PLUS    = r'\+'
-t_MINUS   = r'-'
-t_TIMES   = r'\*'
-t_DIVIDE  = r'/'
-t_POWER   = r'\^'
-t_MODULO  = r'%'
-
-t_LESS      = r'<'
-t_GREATER   = r'>'
-t_LESSEQ    = r'<='
-t_GREATEQ   = r'>='
-t_NOTEQ     = r'!='
-
-"""NOT USING NOW """
-"in"
-"not"
-"<>"
-"<<"
-">>"
-"~"
-"lambda"
-
-""" should carriage return \r really be ignored? """
-# Ignored characters
-t_ignore = ' \t\v\r' # ignres ALL whitespace (but not newlines, so those can be counted--just tabs, vertical tabs, and carriage returns)
-
-states = (
-    ('emcomment','exclusive'),
-)
-
-t_emcomment_ignore = ' \t\v\r'
-
-# why couldn't you ignore single line comment with this: t_ignore = r'//:'
-"""
-or perhaps you could ignore it with a definition that comes before all other definitions (though i suppose newline could mess that up because you'd NEED to make sure it was running first to be considered the right line...wait then doesn't that mean that this IGNORE thing going on here will make multi-line comments fuck up the newline count?! oh wow, you can use token.value.count('\n) even though it's being 'ignored'):
-
-def t_ONELCOMMENT(token):
-    r'//'
-    pass
-"""
-
-def t_begin_emcomment(token):
-    r'//:'
-    token.lexer.begin('emcomment')
-
-def t_emcomment_end(token):
-    r'://'
-    # makes sure to count lines
-    "but why is this in END and not in the start of the state?"
-    token.lexer.lineno += token.value.count('\n')
-    # goes back to non-comment mode
-    token.lexer.begin('INITIAL')
-
-def t_emcomment_error(token):
-    # skips over EVERYTHING you find until you get to the end of the comment
-    # this is similar to pass, but gathers up all the symbols so that you can count the newlines later at the t_emcomment_end part
-    token.lexer.skip(1)
-
-def t_newline(t):
-    r'\n+'
-    t.lexer.lineno += len(t.value)
-        # += t.value.count("\n")
-    
-def t_error(t):
-    print("Illegal character '%s'" % t.value[0])
-    t.lexer.skip(1)
-
-def t_ID(t):
-    r'[a-zA-Z_][a-zA-Z0-9_]*'
-    t.type = reserved.get(t.value,'ID')
-    return t
-
-def t_NUMBER(t):
-    r'-?((\d+(\.\d+)?)|(\.\d+))' # should include neg/pos either '[nums]' or '[numss].[nums]' or '.[nums]''
-    try:
-        t.value = int(t.value)
-    except ValueError:
-        print("Integer value too large %d", t.value)
-        t.value = 0
-    # return float(t)
-    return t
 
 
 # token classes for pratt parser objectification
@@ -257,7 +159,7 @@ class Tok_In(Tok_Template):
     lbp = 60
 
 # infix("not", 60) # in, not in
-class Tok_Not(Tok_Template):
+class Tok_Not_In(Tok_Template):
     lbp = 60
 
 # infix("is", 60) # is, is not
@@ -351,10 +253,13 @@ class Tok_Power(Tok_Template):
         self.second = expression(lbp-1)
         return self 
 
+# symbol("\/", 135)
+class Tok_Global(Tok_Template):
+    lbp = 135
 
 # symbol("->", 140)
-class Tok_Arrow(Tok_Template):
-    lbp = 150
+class Tok_Arrowed(Tok_Template):
+    lbp = 140
 
 """ HOW DOES DOT NOTATION WORK """
 # symbol(".", 150)
@@ -512,10 +417,203 @@ def constant(id):
     constant("False")
 
 
-def makeTokenObj(token):
-    
-    # token = Tok_Template(tok.type, tok.value, tok.lexpos)
 
+""" should carriage return \r really be ignored? """
+# Ignored characters
+t_ignore = ' \t\v\r' # ignres ALL whitespace (but not newlines, so those can be counted--just tabs, vertical tabs, and carriage returns)
+
+states = (
+    ('emcomment','exclusive'),
+)
+
+t_emcomment_ignore = ' \t\v\r'
+
+# why couldn't you ignore single line comment with this: t_ignore = r'//:'
+"""
+or perhaps you could ignore it with a definition that comes before all other definitions (though i suppose newline could mess that up because you'd NEED to make sure it was running first to be considered the right line...wait then doesn't that mean that this IGNORE thing going on here will make multi-line comments fuck up the newline count?! oh wow, you can use token.value.count('\n) even though it's being 'ignored'):
+
+def t_ONELCOMMENT(token):
+    r'//'
+    pass
+"""
+
+def t_begin_emcomment(token):
+    r'//:'
+    token.lexer.begin('emcomment')
+
+def t_emcomment_end(token):
+    r'://'
+    # makes sure to count lines
+    "but why is this in END and not in the start of the state?"
+    token.lexer.lineno += token.value.count('\n')
+    # goes back to non-comment mode
+    token.lexer.begin('INITIAL')
+
+def t_emcomment_error(token):
+    # skips over EVERYTHING you find until you get to the end of the comment
+    # this is similar to pass, but gathers up all the symbols so that you can count the newlines later at the t_emcomment_end part
+    token.lexer.skip(1)
+
+def t_newline(t):
+    r'\n+'
+    t.lexer.lineno += len(t.value)
+        # += t.value.count("\n")
+    
+def t_error(t):
+    print("Illegal character '%s'" % t.value[0])
+    t.lexer.skip(1)
+
+"""EASTER EGG SHENANIGANS...do I want to allow anything to be written within the brackets? If so, what happens with that?"""
+# def t_EMCSQ(t):
+#     r'EmC\[\]'
+#     return t
+
+def t_ID(t):
+    r'[a-zA-Z_][a-zA-Z0-9_]*'
+    t.type = reserved.get(t.value,'ID')
+    t = Tok_Id(t.type, t.value, t.lexpos)
+    return t
+
+def t_NUMBER(t):
+    r'-?((\d+(\.\d+)?)|(\.\d+))' # should include neg/pos either '[nums]' or '[numss].[nums]' or '.[nums]''
+    try:
+        t.value = int(t.value)
+    except ValueError:
+        print("Integer value too large %d", t.fvalue)
+        t.value = 0
+    # return float(t)
+    t = Tok_Numb(t.type, t.value, t.lexpos)
+    return t
+
+
+def t_SLCOMMENT(t):
+    r'//[^:][^\n]*'
+    pass
+
+def t_SEMICOLON(t):
+    r';'
+    t = Tok_Template(t.type, t.value, t.lexpos)
+    return t
+
+def t_GLOBAL(t):
+    r'\\/'
+    t = Tok_Global(t.type, t.value, t.lexpos)
+    return t
+
+def t_STRING(t):
+    r'("[^"]*")'  # |(\'[^']*\')' # must have line count
+    t = Tok_String(t.type, t.value, t.lexpos)
+    return t
+
+def t_LPAREN(t):
+    r'\('
+    t = Tok_LParen(t.type, t.value, t.lexpos)
+    return t
+
+def t_RPAREN(t):
+    r'\)'
+    t = Tok_Template(t.type, t.value, t.lexpos)
+    return t
+
+def t_LBRACK(t):
+    r'\['
+    t = Tok_LBrack(t.type, t.value, t.lexpos)
+    return t
+
+def t_RBRACK(t):
+    r'\]'
+    t = Tok_Template(t.type, t.value, t.lexpos)
+    return t
+
+def t_LCBRACE(t):
+    r'\{'
+    t = Tok_LCBrace(t.type, t.value, t.lexpos)
+    return t
+
+def t_RCBRACE(t):
+    r'\}'
+    t = Tok_Template(t.type, t.value, t.lexpos)
+    return t
+
+def t_DOT(t):
+    r'\.'
+    t = Tok_Dot(t.type, t.value, t.lexpos)
+    return t
+
+def t_COMMA(t):
+    r','
+    t = Tok_Comma(t.type, t.value, t.lexpos)
+    return t
+
+def t_ARROWED(t):
+    r'->'   # or '-->' ?
+    t = Tok_Arrowed(t.type, t.value, t.lexpos)
+    return t
+
+def t_ISEQ(t):
+    r'=='
+    t = Tok_Is_Equal(t.type, t.value, t.lexpos)
+    return t
+
+def t_ASSIGN(t):
+    r'='
+    t = Tok_Assign(t.type, t.value, t.lexpos)
+    return t
+
+def t_PLUS(t):
+    r'\+'
+    t = Tok_Plus(t.type, t.value, t.lexpos)
+    return t
+
+def t_MINUS(t):
+    r'-'
+    t = Tok_Minus(t.type, t.value, t.lexpos)
+    return t
+
+def t_TIMES(t):
+    r'\*'
+    t = Tok_Times(t.type, t.value, t.lexpos)
+    return t
+
+def t_DIVIDE(t):
+    r'/'
+    t = Tok_Div(t.type, t.value, t.lexpos)
+    return t
+
+def t_POWER(t):
+    r'\^'
+    t = Tok_Power(t.type, t.value, t.lexpos)
+    return t
+
+def t_MODULO(t):
+    r'%'
+    t = Tok_Modulo(t.type, t.value, t.lexpos)
+    return t
+
+def t_LESS(t):
+    r'<'
+    t = Tok_Less_Than(t.type, t.value, t.lexpos)
+    return t
+
+def t_GREATER(t):
+    r'>'
+    t = Tok_Greater_Than(t.type, t.value, t.lexpos)
+    return t
+
+def t_LESSEQ(t):
+    r'<='
+    t = Tok_Less_Or_Eq(t.type, t.value, t.lexpos)
+    return t
+
+def t_GREATEQ(t):
+    r'>='
+    t = Tok_Greater_Or_Eq(t.type, t.value, t.lexpos)
+    return t
+
+def t_NOTEQ(t):
+    r'!='
+    t = Tok_Not_Eq(t.type, t.value, t.lexpos)
+    return t
 
 
 # Build the lexer
@@ -532,11 +630,11 @@ while True:
     
     if not tok: break
     
-    output.append(tok)
-    list_tuples_form += [(tok.type, tok.value)]
-    # pratt_obj_form.append(makeTokenObj(tok))
-    token = Tok_Template(tok.type, tok.value, tok.lexpos)
-    pratt_obj_form.append(token)
+    # output.append(tok)
+    # list_tuples_form += [(tok.type, tok.value)]
+    pratt_obj_form.append(tok)
+    # token = Tok_Template(tok.type, tok.value, tok.lexpos)
+    # pratt_obj_form.append(token)
     if tok.type == 'STRING' or tok.type == 'NUMBER':
         constants_list += (tok.type, tok.value)
     # print tok.type, tok.value, tok.lexpos
