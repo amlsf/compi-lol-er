@@ -187,7 +187,7 @@ while True:
     output.append(tok)
     list_tuples_form += [(tok.type, tok.value)]
     string_form += "%s %s" % (tok.type, tok.value)
-    token = TokenObj(tok.value, tok.type, tok.lexpos)
+    token = TokenObj(tok.type, tok.value, tok.lexpos)
     pratt_obj_form.append(token)
     if tok.type == 'STRING' or tok.type == 'NUMBER':
         constants_list += (tok.type, tok.value)
