@@ -162,7 +162,7 @@ class TokenObj(object):
         self.value = value
         self.pos = pos
     def __repr__(self):
-        return "Name: %s; Value: %s; Position: %s" % (self.type, self.value, self.pos)
+        return "Type: %s; Value: %s; Position: %s" % (self.type, self.value, self.pos)
 
 
 
