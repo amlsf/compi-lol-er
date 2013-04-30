@@ -8,10 +8,6 @@ list_tuples_form = []
 
 # script, input_script = argvs
 
-input_script = """
-a href src
-"""
-
 # input_script = """
 # //: please ignore
 # this ://
@@ -29,7 +25,7 @@ a href src
 # (num1, num2) --> funName;
 # """
 
-# input_script = "a = 10 + 2 b = a * 3 log(b) c = (b + 10) * 3"
+input_script = "a = 10 + 2 b = a * 3 log(b) c = (b + 10) * 3"
 
 # reserved words so the longest regex (ID) isn't used first and wrongly captured as an ID token
 reserved = {
@@ -169,35 +165,46 @@ class Tok_Is(Tok_Template):
 # infix("<", 60);
 class Tok_Less_Than(Tok_Template):
     lbp = 60
+    def led(self, left):
+        self.first = left
+        self.second = expression(lbp-1)
+        return self
 
 # infix("<=", 60)
 class Tok_Less_Or_Eq(Tok_Template):
     lbp = 60
+    def led(self, left):
+        self.first = left
+        self.second = expression(lbp-1)
+        return self 
 
 # infix(">", 60) 
 class Tok_Greater_Than(Tok_Template):
     lbp = 60
+    def led(self, left):
+        self.first = left
+        self.second = expression(lbp-1)
+        return self 
 
 # infix(">=", 60)
 class Tok_Greater_Or_Eq(Tok_Template):
     lbp = 60
+    def led(self, left):
+        self.first = left
+        self.second = expression(lbp-1)
+        return self 
 
 # infix("!=", 60); 
 class Tok_Not_Eq(Tok_Template):
     lbp = 60
+    def led(self, left):
+        self.first = left
+        self.second = expression(lbp-1)
+        return self 
 
 # infix("==", 60)
 class Tok_Is_Equal(Tok_Template):
     lbp = 60
-
-'''what is the diff between this and other or (the former being python's 'or' and the latter at lbp=60 being python's '|')'''
-# # infix("|", 60)
-# class Tok_PipeOr(Tok_Template):
-#     lbp = 60
-
-# # infix("&", 90)
-# class Tok_AmpersAnd(Tok_Template):
-#     lbp = 90
 
 # infix("+", 110) 
 class Tok_Plus(Tok_Template):
@@ -380,9 +387,6 @@ class Tok_String(Tok_Template):
         return self 
 
 class Tok_Numb(Tok_Template):
-    def __init__(self, val):
-        "SHOULD I MAKE THIS A FLOAT"
-        self.val = int(val)
     def nud(self):
         return self
 
