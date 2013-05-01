@@ -36,6 +36,7 @@ reserved = {
     'itemin' : 'ITEMIN',
     'log' : 'LOG',
     'if' : 'IF',
+    'elif' : 'ELIF',
     'else' : 'ELSE',
     'or' : 'OR',
     'orif' : 'ORIF',
@@ -49,7 +50,6 @@ reserved = {
     'map' : 'TYMAP',
     'true' : 'TRUE',
     'false' : 'FALSE',
-    'elif' : 'ELIF',
     'startup' : 'STARTUP'
 }
 
@@ -59,8 +59,9 @@ tokens = [
     ] + list(reserved.values())
 
 
-# token classes for pratt parser objectification
-class Tok_Template(object):
+##### CLASS FOR BASIC EXPRESSION TOKEN #####
+
+class TokTemplate(object):
     def __init__(self, type, value, pos):
         self.type = type
         self.value = value
@@ -79,14 +80,34 @@ class Tok_Template(object):
         return "(Type: %s; Value: '%s'; Position: %s)" % (self.type, self.value, self.pos)
         # if self.id == "(name)" or self.id == "(literal)":
         #     return "(%s %s)" % (self.id[1:-1], self.value)
-        # out = [self.id, self.first, self.second, self.third]
+        # out = [self.id, self.left_side, self.right_side, self.third]
         # out = map(str, filter(None, out))
         # return "(" + " ".join(out) + ")" # you know everything will be displayed in parentheses
 
 
+##### CLASS FOR BASIC STATEMENT TOKENS #####
+
+
+class TokStatement(TokTemplate):
+    def __init__(self, value):
+        self.value = value
+
+
+class TokStatementList(TokStatement):
+    def __init__(self, statements):
+        self.statements = statements
+
+    def std(self):
+        pass
+
+    def eval(self):
+        for stmt in self.statements:
+            stmt.eval()
+
+
 # symbol("if", 20) 
 # ternary form
-class Tok_If(Tok_Template):
+class TokIf(TokTemplate):
     lbp = 20
     def nud(self):
         self.first = expression(lbp)
@@ -105,7 +126,7 @@ class Tok_If(Tok_Template):
 
 # symbol("if", 20) 
 # ternary form
-class Tok_Elif(Tok_Template):
+class TokElif(TokTemplate):
     lbp = 20
     def nud(self):
         self.first = expression(lbp)
@@ -117,7 +138,7 @@ class Tok_Elif(Tok_Template):
 
 # symbol("if", 20) 
 # ternary form
-class Tok_Else(Tok_Template):
+class TokElse(TokTemplate):
     lbp = 20
     def nud(self):
         self.first = expression(lbp)
@@ -128,18 +149,18 @@ class Tok_Else(Tok_Template):
 
 
 # infix_r("or", 30)
-class Tok_Or(Tok_Template):
+class TokOr(TokTemplate):
     lbp = 30
 
-class Tok_Orif(Tok_Template):
+class TokOrif(TokTemplate):
     lbp = 30
 
 # infix_r("and", 40)
-class Tok_And(Tok_Template):
+class TokAnd(TokTemplate):
     lbp = 40
 
 # infix_r("not", 50)
-class Tok_Not(Tok_Template):
+class TokNot(TokTemplate):
     lbp = 50
     def led(self, left):
         if token.id != "in":
@@ -151,19 +172,19 @@ class Tok_Not(Tok_Template):
         return self
 
 # infix("in", 60)
-class Tok_In(Tok_Template):
+class TokIn(TokTemplate):
     lbp = 60
 
 # infix("not", 60) # in, not in
-class Tok_Not_In(Tok_Template):
+class TokNot_In(TokTemplate):
     lbp = 60
 
 # infix("is", 60) # is, is not
-class Tok_Is(Tok_Template):
+class TokIs(TokTemplate):
     lbp = 60
 
 # infix("<", 60);
-class Tok_Less_Than(Tok_Template):
+class TokLess_Than(TokTemplate):
     lbp = 60
     def led(self, left):
         self.first = left
@@ -171,7 +192,7 @@ class Tok_Less_Than(Tok_Template):
         return self
 
 # infix("<=", 60)
-class Tok_Less_Or_Eq(Tok_Template):
+class TokLess_Or_Eq(TokTemplate):
     lbp = 60
     def led(self, left):
         self.first = left
@@ -179,7 +200,7 @@ class Tok_Less_Or_Eq(Tok_Template):
         return self 
 
 # infix(">", 60) 
-class Tok_Greater_Than(Tok_Template):
+class TokGreater_Than(TokTemplate):
     lbp = 60
     def led(self, left):
         self.first = left
@@ -187,7 +208,7 @@ class Tok_Greater_Than(Tok_Template):
         return self 
 
 # infix(">=", 60)
-class Tok_Greater_Or_Eq(Tok_Template):
+class TokGreater_Or_Eq(TokTemplate):
     lbp = 60
     def led(self, left):
         self.first = left
@@ -195,7 +216,7 @@ class Tok_Greater_Or_Eq(Tok_Template):
         return self 
 
 # infix("!=", 60); 
-class Tok_Not_Eq(Tok_Template):
+class TokNot_Eq(TokTemplate):
     lbp = 60
     def led(self, left):
         self.first = left
@@ -203,11 +224,11 @@ class Tok_Not_Eq(Tok_Template):
         return self 
 
 # infix("==", 60)
-class Tok_Is_Equal(Tok_Template):
+class TokIs_Equal(TokTemplate):
     lbp = 60
 
 # infix("+", 110) 
-class Tok_Plus(Tok_Template):
+class TokPlus(TokTemplate):
     lbp = 90
     def led(self, left):
         self.first = left
@@ -217,7 +238,7 @@ class Tok_Plus(Tok_Template):
     # symbol(id, bp).led = led
 
 # infix("-", 110)
-class Tok_Minus(Tok_Template):
+class TokMinus(TokTemplate):
     lbp = 90
     def led(self, left):
         self.first = left
@@ -225,7 +246,7 @@ class Tok_Minus(Tok_Template):
         return self
 
 # infix("*", 120) 
-class Tok_Times(Tok_Template):
+class TokTimes(TokTemplate):
     lbp = 90
     def led(self, left):
         self.first = left
@@ -233,7 +254,7 @@ class Tok_Times(Tok_Template):
         return self
 
 # infix("/", 120)
-class Tok_Div(Tok_Template):
+class TokDiv(TokTemplate):
     lbp = 90
     def led(self, left):
         self.first = left
@@ -241,7 +262,7 @@ class Tok_Div(Tok_Template):
         return self 
 
 # infix("%", 120)
-class Tok_Modulo(Tok_Template):
+class TokModulo(TokTemplate):
     lbp = 90
     def led(self, left):
         self.first = left
@@ -249,11 +270,11 @@ class Tok_Modulo(Tok_Template):
         return self     
 
 # prefix("-", 130) 
-class Tok_Negative(Tok_Template):
+class TokNegative(TokTemplate):
     lbp = 90
 
 # infix_r("^", 140)
-class Tok_Power(Tok_Template):
+class TokPower(TokTemplate):
     lbp = 130
     def led(self, left):
         self.first = left
@@ -261,16 +282,16 @@ class Tok_Power(Tok_Template):
         return self 
 
 # symbol("\/", 135)
-class Tok_Global(Tok_Template):
+class TokGlobal(TokTemplate):
     lbp = 135
 
 # symbol("->", 140)
-class Tok_Arrowed(Tok_Template):
+class TokArrowed(TokTemplate):
     lbp = 140
 
 """ HOW DOES DOT NOTATION WORK """
 # symbol(".", 150)
-class Tok_Dot(Tok_Template):
+class TokDot(TokTemplate):
     lbp = 150
     def led(self, left):
         if token.id != "(name)":
@@ -282,11 +303,11 @@ class Tok_Dot(Tok_Template):
 
 """ AND LISTS """
 # symbol(",", 150)
-class Tok_Comma(Tok_Template):
+class TokComma(TokTemplate):
     lbp = 150
 
 # symbol("[", 150)
-class Tok_LBrack(Tok_Template):
+class TokLBrack(TokTemplate):
     lbp = 150
     def led(self, left):
         self.first = left
@@ -307,7 +328,7 @@ class Tok_LBrack(Tok_Template):
         return self
 
 # symbol("(", 150)
-class Tok_LParen(Tok_Template):
+class TokLParen(TokTemplate):
     lbp = 150
     def nud(self):
         expr = expression()
@@ -345,7 +366,7 @@ class Tok_LParen(Tok_Template):
         return self
 
 # symbol("=", 160)
-class Tok_Assign(Tok_Template):
+class TokAssign(TokTemplate):
     lbp = 160
     def led (self, left):
         self.first = left
@@ -353,7 +374,7 @@ class Tok_Assign(Tok_Template):
         return self
 
 # symbol("{", 170)
-class Tok_LCBrace(Tok_Template):
+class TokLCBrace(TokTemplate):
     lbp = 170
     def nud(self):
         self.first = []
@@ -376,21 +397,21 @@ class Tok_LCBrace(Tok_Template):
 # symbol(";")
 # symbol(",")
 
-class Tok_Id(Tok_Template):
+class TokId(TokTemplate):
     '''does it need lbp?'''
     lbp = 10
     def nud (self):
         return self
 
-class Tok_String(Tok_Template):
+class TokString(TokTemplate):
     def nud(self):
         return self 
 
-class Tok_Numb(Tok_Template):
+class TokNumb(TokTemplate):
     def nud(self):
         return self
 
-class Tok_End(Tok_Template):
+class TokEnd(TokTemplate):
         lbp = 0
 
 
@@ -475,7 +496,7 @@ def t_error(t):
 def t_ID(t):
     r'[a-zA-Z_][a-zA-Z0-9_]*'
     t.type = reserved.get(t.value,'ID')
-    t = Tok_Id(t.type, t.value, t.lexpos)
+    t = TokId(t.type, t.value, t.lexpos)
     return t
 
 def t_NUMBER(t):
@@ -486,7 +507,7 @@ def t_NUMBER(t):
         print("Integer value too large %d", t.fvalue)
         t.value = 0
     # return float(t)
-    t = Tok_Numb(t.type, t.value, t.lexpos)
+    t = TokNumb(t.type, t.value, t.lexpos)
     return t
 
 
@@ -496,127 +517,127 @@ def t_SLCOMMENT(t):
 
 def t_SEMICOLON(t):
     r';'
-    t = Tok_Template(t.type, t.value, t.lexpos)
+    t = TokTemplate(t.type, t.value, t.lexpos)
     return t
 
 def t_GLOBAL(t):
     r'\\/'
-    t = Tok_Global(t.type, t.value, t.lexpos)
+    t = TokGlobal(t.type, t.value, t.lexpos)
     return t
 
 def t_STRING(t):
     r'("[^"]*")'  # |(\'[^']*\')' # must have line count
-    t = Tok_String(t.type, t.value, t.lexpos)
+    t = TokString(t.type, t.value, t.lexpos)
     return t
 
 def t_LPAREN(t):
     r'\('
-    t = Tok_LParen(t.type, t.value, t.lexpos)
+    t = TokLParen(t.type, t.value, t.lexpos)
     return t
 
 def t_RPAREN(t):
     r'\)'
-    t = Tok_Template(t.type, t.value, t.lexpos)
+    t = TokTemplate(t.type, t.value, t.lexpos)
     return t
 
 def t_LBRACK(t):
     r'\['
-    t = Tok_LBrack(t.type, t.value, t.lexpos)
+    t = TokLBrack(t.type, t.value, t.lexpos)
     return t
 
 def t_RBRACK(t):
     r'\]'
-    t = Tok_Template(t.type, t.value, t.lexpos)
+    t = TokTemplate(t.type, t.value, t.lexpos)
     return t
 
 def t_LCBRACE(t):
     r'\{'
-    t = Tok_LCBrace(t.type, t.value, t.lexpos)
+    t = TokLCBrace(t.type, t.value, t.lexpos)
     return t
 
 def t_RCBRACE(t):
     r'\}'
-    t = Tok_Template(t.type, t.value, t.lexpos)
+    t = TokTemplate(t.type, t.value, t.lexpos)
     return t
 
 def t_DOT(t):
     r'\.'
-    t = Tok_Dot(t.type, t.value, t.lexpos)
+    t = TokDot(t.type, t.value, t.lexpos)
     return t
 
 def t_COMMA(t):
     r','
-    t = Tok_Comma(t.type, t.value, t.lexpos)
+    t = TokComma(t.type, t.value, t.lexpos)
     return t
 
 def t_ARROWED(t):
     r'->'   # or '-->' ?
-    t = Tok_Arrowed(t.type, t.value, t.lexpos)
+    t = TokArrowed(t.type, t.value, t.lexpos)
     return t
 
 def t_ISEQ(t):
     r'=='
-    t = Tok_Is_Equal(t.type, t.value, t.lexpos)
+    t = TokIs_Equal(t.type, t.value, t.lexpos)
     return t
 
 def t_ASSIGN(t):
     r'='
-    t = Tok_Assign(t.type, t.value, t.lexpos)
+    t = TokAssign(t.type, t.value, t.lexpos)
     return t
 
 def t_PLUS(t):
     r'\+'
-    t = Tok_Plus(t.type, t.value, t.lexpos)
+    t = TokPlus(t.type, t.value, t.lexpos)
     return t
 
 def t_MINUS(t):
     r'-'
-    t = Tok_Minus(t.type, t.value, t.lexpos)
+    t = TokMinus(t.type, t.value, t.lexpos)
     return t
 
 def t_TIMES(t):
     r'\*'
-    t = Tok_Times(t.type, t.value, t.lexpos)
+    t = TokTimes(t.type, t.value, t.lexpos)
     return t
 
 def t_DIVIDE(t):
     r'/'
-    t = Tok_Div(t.type, t.value, t.lexpos)
+    t = TokDiv(t.type, t.value, t.lexpos)
     return t
 
 def t_POWER(t):
     r'\^'
-    t = Tok_Power(t.type, t.value, t.lexpos)
+    t = TokPower(t.type, t.value, t.lexpos)
     return t
 
 def t_MODULO(t):
     r'%'
-    t = Tok_Modulo(t.type, t.value, t.lexpos)
+    t = TokModulo(t.type, t.value, t.lexpos)
     return t
 
 def t_LESS(t):
     r'<'
-    t = Tok_Less_Than(t.type, t.value, t.lexpos)
+    t = TokLess_Than(t.type, t.value, t.lexpos)
     return t
 
 def t_GREATER(t):
     r'>'
-    t = Tok_Greater_Than(t.type, t.value, t.lexpos)
+    t = TokGreater_Than(t.type, t.value, t.lexpos)
     return t
 
 def t_LESSEQ(t):
     r'<='
-    t = Tok_Less_Or_Eq(t.type, t.value, t.lexpos)
+    t = TokLess_Or_Eq(t.type, t.value, t.lexpos)
     return t
 
 def t_GREATEQ(t):
     r'>='
-    t = Tok_Greater_Or_Eq(t.type, t.value, t.lexpos)
+    t = TokGreater_Or_Eq(t.type, t.value, t.lexpos)
     return t
 
 def t_NOTEQ(t):
     r'!='
-    t = Tok_Not_Eq(t.type, t.value, t.lexpos)
+    t = TokNot_Eq(t.type, t.value, t.lexpos)
     return t
 
 
@@ -637,7 +658,7 @@ while True:
     # output.append(tok)
     # list_tuples_form += [(tok.type, tok.value)]
     pratt_obj_form.append(tok)
-    # token = Tok_Template(tok.type, tok.value, tok.lexpos)
+    # token = TokTemplate(tok.type, tok.value, tok.lexpos)
     # pratt_obj_form.append(token)
     if tok.type == 'STRING' or tok.type == 'NUMBER':
         constants_list += (tok.type, tok.value)
@@ -650,4 +671,84 @@ print constants_list
 
 # def em_lexer(lexer,input_script):
 #   pass
-  
+
+
+def argument_list(list):
+    while True:
+        if token.id != "(name)":
+            SyntaxError("Expected an argument name.")
+        list.append(token)
+        advance()
+        if token.id == "=":
+            advance()
+            list.append(expression())
+        else:
+            list.append(None)
+        if token.id != ",":
+            break
+        advance(",")
+
+def constant(id):
+    @method(symbol(id))
+    def nud(self):
+        self.id = "(literal)"
+        self.value = id
+        return self
+
+    constant("None")
+    constant("True")
+    constant("False")
+
+
+
+##### METHODS FOR PARSING PROCESS #####
+
+def next():
+    if remain_tokens:
+        # pop off the next token obj in the list and return it so it gets set to the global 'token'
+        return remain_tokens.pop(0)
+    else:
+        # makes 
+        return LastToken()
+
+def parse(program):
+    global token
+    # grabs next token off front of list
+    token = next()
+    statements = []
+    while not isinstance(token, LastToken):
+        if isinstance(token, TokStatement):
+            element = token.std()
+        else:
+            element = expression()
+            # how do you force a newlinetoken?
+            # next(NewLineToken)
+        statements.append(element)
+    all_stmts = StatementList(statements)
+
+
+# NUD doesn't care about the tokens to left
+    # nud --> variables, literals, prefix op
+# LED cared about tokens to left
+    # infix ops, suffix ops
+# pratt calls this "def parse"
+def expression(rbp=0):
+    global token
+    # t = current token (now considered previous token)
+    t = token
+    print t
+    # make token the next one in the program
+    token = next()
+    "If you're just accessing the value, is there no way to just ask for t.value without a specific method?"
+    # leftd = denotation of the previous token
+    left = t.nud()
+    print token
+    # until you reach a next token that has a denotation less than that of the most recent token, return the leftd
+    # "lbp is a vinding power controlling operator precedence; the higher the value, the tighter a token binds to the tokens that follow"
+    while rbp < token.lbp:
+        # when the lbp is higher than the previous token's binding power, continue on to the next token
+        t = token
+        token = next()
+        # and call t.led(leftd)
+        left = t.led(left)
+    return left
