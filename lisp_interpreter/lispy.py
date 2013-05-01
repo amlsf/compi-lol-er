@@ -1,3 +1,6 @@
+# from http://norvig.com/lispy.html tutorial
+# mostly done to understand the process, not to create something new.
+
 # interprets lisp program in python
 
 isa = isinstance
