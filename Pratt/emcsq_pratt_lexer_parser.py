@@ -191,9 +191,10 @@ class TokTemplate(object):
 
 
 class TokStatement(TokTemplate):
-    def __init__(self, value):
+    def __init__(self, type, value, pos):
+        self.type = type
         self.value = value
-
+        self.pos = pos
 
 class TokStatementList(TokStatement):
     def __init__(self, statements):
@@ -257,19 +258,19 @@ class TokNumb(TokTemplate):
 class TokTrue(TokTemplate):
     def nud(self):
         return self 
-    def eval():
+    def eval(self):
         return True
 
 class TokFalse(TokTemplate):
     def nud(self):
         return self 
-    def eval():
+    def eval(self):
         return False
 
 class TokEmpty(TokTemplate):
     def nud(self):
         return self 
-    def eval():
+    def eval(self):
         return None
 
 # infix_r("or", 30)
@@ -583,47 +584,49 @@ class TokComma(TokTemplate):
 ##### CLASSES FOR STATEMENT TOKENS -- RESERVED #####
 
 class TokUse(TokStatement):
-    def stmtd():
+    def stmtd(self):
         pass
-    def eval():
+    def eval(self):
         pass
 
 class TokFunction(TokStatement):
-    def stmtd():
+    def stmtd(self):
         pass
-    def eval():
+    def eval(self):
         pass
 
 class TokReturn(TokStatement):
-    def stmtd():
+    def stmtd(self):
         pass
-    def eval():
+    def eval(self):
         pass
 
 class TokCall(TokStatement):
-    def stmtd():
+    def stmtd(self):
         pass
-    def eval():
+    def eval(self):
         pass
 
 class TokItemIn(TokStatement):
-    def stmtd():
+    def stmtd(self):
         pass
-    def eval():
+    def eval(self):
         pass
 
 class TokLog(TokStatement):
-    def stmtd():
-        next()
+    def stmtd(self):
+        global token
+        token = next()
+        print ('saaaaaaaaaaaaaaaah')
         self.second = expression(0)
         advance(')')
-    def eval():
+    def eval(self):
         print self.second
 
 # symbol("if", 20) 
 # ternary form
 class TokIf(TokStatement):
-    def stmtd():
+    def stmtd(self):
         pass
         # evaluate the conditional
         # if conditional true, 
@@ -633,59 +636,59 @@ class TokIf(TokStatement):
 # symbol("if", 20) 
 # ternary form
 class TokElif(TokStatement):
-    def stmtd():
+    def stmtd(self):
         pass
-    def eval():
+    def eval(self):
         pass
 
 # symbol("if", 20) 
 # ternary form
 class TokElse(TokStatement):
-    def stmtd():
+    def stmtd(self):
         pass
     def eval(self):
         pass
 
 class TokTypeNone(TokTemplate):
-    def stmtd():
+    def stmtd(self):
         pass
-    def eval():
+    def eval(self):
         pass
 
 class TokTypeInt(TokStatement):
-    def stmtd():
+    def stmtd(self):
         return
-    def eval():
+    def eval(self):
         pass
 
 class TokTypeString(TokStatement):
-    def stmtd():
+    def stmtd(self):
         pass
-    def eval():
+    def eval(self):
         pass
 
 class TokTypeList(TokStatement):
-    def stmtd():
+    def stmtd(self):
         pass
-    def eval():
+    def eval(self):
         pass
 
 class TokTypeBool(TokStatement):
-    def stmtd():
+    def stmtd(self):
         pass
-    def eval():
+    def eval(self):
         pass
 
 class TokTypeMap(TokStatement):
-    def stmtd():
+    def stmtd(self):
         pass
-    def eval():
+    def eval(self):
         pass
 
 class TokBounds(TokTemplate):
-    def stmtd():
+    def stmtd(self):
         pass
-    def eval():
+    def eval(self):
         pass
 
 
@@ -988,42 +991,36 @@ def next():
     global remain_tokens
     if remain_tokens:
         # pop off the next token obj in the list and return it so it gets set to the global 'token'
+        print remain_tokens[0].type
         return remain_tokens.pop(0)
     else:
         # makes 
         return TokLast()
 
+# debugging counter to see how many iterations have run
+depth = 0
 def parse():
     global token
+    global depth
     # grabs next token off front of list
     token = next()
-    # statements = []
-    print token
-    print isinstance(token, TokStatement)
+    # statements = [] # do i need this?!
+    print type(token)
     while not isinstance(token, TokLast):
         if isinstance(token, TokStatement):
-            print "STATEMENT FOUND"
-            statement()
+            print "-----STATEMENT FOUND-----"
+            print "depth: ", depth
+            depth += 1
+            # element = token.stmtd()
+            token.stmtd()
         else:
-            print "EXPR FOUND"
+            print "-----EXPR FOUND-----"
+            print "depth: ", depth
+            depth += 1
+            # element = expression()
             expression()
-            # how do you force a newlinetoken?
-            # next(NewLineToken)
         # statements.append(element)
-    # all_stmts = StatementList(statements)
-
-def statement():
-    global token
-    if isinstance(token, StatementToken):
-        return token.std()
-    else:
-        expr = expression(0)
-        next(NewLineToken)
-        if type(expr) not in [AssignToken, MoreToken, LessToken, MoreEqualToken, LessEqualToken, StringPromptToken, EqualToken, NumberPromptToken, RandomToken]:
-            raise Exception("such expression doesn't exist")
-        else:
-            return expr
-
+    # all_stmts = StatementList(statements) # but whhyyy
 
 # NUD doesn't care about the tokens to left
     # nud --> variables, literals, prefix op
@@ -1037,7 +1034,6 @@ def expression(rbp=0):
     print t
     # make token the next one in the program
     token = next()
-    "If you're just accessing the value, is there no way to just ask for t.value without a specific method?"
     # leftd = denotation of the previous token
     left = t.nud()
     print token
