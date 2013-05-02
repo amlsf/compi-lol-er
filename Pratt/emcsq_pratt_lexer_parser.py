@@ -232,6 +232,27 @@ class TokSemicolon(TokTemplate):
     def nud(self):
         pass
 
+class TokRParen(TokTemplate):
+    lbp = 0
+    def led(self):
+        pass
+    def nud(self):
+        pass
+
+class TokRBrack(TokTemplate):
+    lbp = 0
+    def led(self):
+        pass
+    def nud(self):
+        pass
+
+class TokRCBrace(TokTemplate):
+    lbp = 0
+    def led(self):
+        pass
+    def nud(self):
+        pass
+
 class TokId(TokTemplate):
     # '''does it need lbp?'''
     lbp = 10
@@ -488,23 +509,23 @@ class TokLParen(TokTemplate):
         advance(")")
         return expr
         '''HOW DO DISTINGUISH BETWEEN NUDS'''
-    def nud(self):
-        self.first = []
-        comma = False
-        if token.value != ")":
-            while 1:
-                if token.value == ")":
-                    break
-                self.first.append(expression())
-                if token.value != ",":
-                    break
-                comma = True
-                advance(",")
-        advance(")")
-        if not self.first or comma:
-            return self # tuple
-        else:
-            return self.first[0]
+    # def nud(self):
+    #     self.first = []
+    #     comma = False
+    #     if token.value != ")":
+    #         while 1:
+    #             if token.value == ")":
+    #                 break
+    #             self.first.append(expression())
+    #             if token.value != ",":
+    #                 break
+    #             comma = True
+    #             advance(",")
+    #     advance(")")
+    #     if not self.first or comma:
+    #         return self # tuple
+    #     else:
+    #         return self.first[0]
     def led(self, left):
         self.first = left
         self.second = []
@@ -617,7 +638,6 @@ class TokLog(TokStatement):
     def stmtd(self):
         global token
         token = next()
-        print ('saaaaaaaaaaaaaaaah')
         self.second = expression(0)
         advance(')')
     def eval(self):
@@ -746,7 +766,7 @@ def t_LPAREN(t):
 
 def t_RPAREN(t):
     r'\)'
-    t = TokTemplate(t.type, t.value, t.lexpos)
+    t = TokRParen(t.type, t.value, t.lexpos)
     return t
 
 def t_LBRACK(t):
@@ -756,7 +776,7 @@ def t_LBRACK(t):
 
 def t_RBRACK(t):
     r'\]'
-    t = TokTemplate(t.type, t.value, t.lexpos)
+    t = TokRBrack(t.type, t.value, t.lexpos)
     return t
 
 def t_LCBRACE(t):
@@ -766,7 +786,7 @@ def t_LCBRACE(t):
 
 def t_RCBRACE(t):
     r'\}'
-    t = TokTemplate(t.type, t.value, t.lexpos)
+    t = TokRCBrace(t.type, t.value, t.lexpos)
     return t
 
 def t_DOT(t):
@@ -929,12 +949,12 @@ def constant(id):
     constant("True")
     constant("False")
 
-def advance(type=None):
+def advance(value=None):
     global token
-    print "type, token.type %r %r"%(type, token.type)
-    if type and token.type != type:
-        print "BARF"
-        raise SyntaxError("Expected %r" % type)
+    print "value, token.value %r %r"%(value, token.value)
+    if value and token.value != value:
+        print "WTF WHY IS THIS ADVANCE NOT WORKING"
+        raise SyntaxError("Expected %r" % value)
     token = next()
 
 ##### ACTUAL LEXING USING PLY #####
@@ -989,38 +1009,43 @@ em_lexer()
 
 def next():
     global remain_tokens
+    global depth
+    global token
+
+    if depth > 0:
+        print "Depth, Method, Token", depth, "next-ed", token.type
+    depth += 1
+
     if remain_tokens:
         # pop off the next token obj in the list and return it so it gets set to the global 'token'
         print remain_tokens[0].type
         return remain_tokens.pop(0)
     else:
         # makes 
-        return TokLast()
+        return TokLast('last', 'last', 'end')
 
 # debugging counter to see how many iterations have run
 depth = 0
 def parse():
     global token
     global depth
-    # grabs next token off front of list
+    # grabs first token off front of list
     token = next()
     # statements = [] # do i need this?!
-    print type(token)
     while not isinstance(token, TokLast):
         if isinstance(token, TokStatement):
             print "-----STATEMENT FOUND-----"
-            print "depth: ", depth
+            print "Depth, Method, Token", depth, "stmt-ed", token.type
             depth += 1
-            # element = token.stmtd()
-            token.stmtd()
+            element = token.stmtd()
+            # token.stmtd()
         else:
             print "-----EXPR FOUND-----"
-            print "depth: ", depth
-            depth += 1
-            # element = expression()
-            expression()
-        # statements.append(element)
-    # all_stmts = StatementList(statements) # but whhyyy
+            element = expression()
+            # expression()
+        statements.append(element)
+    all_stmts = StatementList(statements) # but whhyyy
+    all_stmts.eval()
 
 # NUD doesn't care about the tokens to left
     # nud --> variables, literals, prefix op
@@ -1029,22 +1054,28 @@ def parse():
 # pratt calls this "def parse"
 def expression(rbp=0):
     global token
+    global depth
+    print "Depth, Method, Token", depth, "expression-ed", token.type
+    # depth += 1
+
     # t = current token (now considered previous token)
     t = token
     print t
     # make token the next one in the program
     token = next()
+    print token
     # leftd = denotation of the previous token
     left = t.nud()
-    print token
     # until you reach a next token that has a denotation less than that of the most recent token, return the leftd
     # "lbp is a vinding power controlling operator precedence; the higher the value, the tighter a token binds to the tokens that follow"
-    while rbp < token.lbp:
-        # when the lbp is higher than the previous token's binding power, continue on to the next token
-        t = token
-        token = next()
-        # and call t.led(leftd)
-        left = t.led(left)
-    return left
+    while not isinstance(token, TokLast):
+        while rbp < token.lbp:
+            # when the lbp is higher than the previous token's binding power, continue on to the next token
+            t = token
+            token = next()
+            # and call t.led(leftd)
+            left = t.led(left)
+        print "returning", left
+        return left
 
 parse()
