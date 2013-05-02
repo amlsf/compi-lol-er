@@ -1,0 +1,51 @@
+grammar = [
+("exp", ["exp","+","exp"]),
+("exp", ["exp","-","exp"]),
+("exp", ["exp","*","exp"]),
+("exp", ["exp","/","exp"]),
+("exp", ["num]),
+
+]
+
+compoundstmt --> { stmts }
+
+stmts --> stmt; stmts
+?stmts --. E[psiolon]
+stmt --> exp stmt
+stmt --> if exp compoundstmt
+stmt --> if exp compoundstmt else compoundstmt
+stmt --> ID = exp
+stmt --> return exp
+stmt --> E[psilon]
+
+exp --> exp + exp
+exp --> exp - exp
+exp --> exp * exp
+exp --> exp / exp
+exp --> exp * exp
+exp --> exp ** exp
+exp --> exp < exp
+exp --> exp > exp
+exp --> exp <= exp
+exp --> exp >= exp
+exp --> exp == exp
+exp --> exp && exp
+exp --> exp || exp
+exp --> exp != exp
+exp --> false
+exp --> true
+exp --> (exp)
+exp --> NUM
+exp --> ID
+exp --> STRING
+
+js --> element js
+js --> E[psilon]
+element --> function identifier (optparams) compoundstmt
+element --> stmt ;
+opt params --> params
+opt params --> E[psilon]
+params --> identifier , params
+params --> identifier
+
+
