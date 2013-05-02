@@ -1,5 +1,14 @@
+################################################################################
+################################################################################
+#######################        EMC[] TIME        ###############################
+################################################################################
+############################################ a compiler by emily gasca #########
+
+
 from sys import argv
 import ply.lex as lex
+from peak.util.assembler import Code
+from dis import dis
 
 #vars for tokenizing
 output = []
@@ -15,6 +24,9 @@ token = None
 # keep scope object here
 scope = None
 # class Scope_Template(object):
+
+# vars for compiling
+c = Code()
 
 
 # script, input_script = argvs
@@ -63,33 +75,13 @@ input_script = """log("hi");"""
 # (num1, num2) --> funName;
 # """
 
+################################################################################
+################################################################################
+#######################       LEXING  TIME       ###############################
+################################################################################
+################################################################################
 
-# reserved words so the longest regex (ID) isn't used first and wrongly captured as an ID token
-# reserved = {
-#     'use' : 'USE',
-#     'fun' : 'FUN',
-#     'return' : 'RETURN',
-#     'call' : 'CALL',
-#     'itemin' : 'ITEMIN',
-#     'log' : 'LOG',
-#     'if' : 'IF',
-#     'elif' : 'ELIF',
-#     'else' : 'ELSE',
-#     'or' : 'OR',
-#     'orif' : 'ORIF',
-#     'and' : 'AND',
-#     'not' : 'NOT',
-#     'none' : 'TYNONE',
-#     'int' : 'TYINT',
-#     'string' : 'TYSTRING',
-#     'list' : 'TYLIST',
-#     'bool' : 'TYBOOL',
-#     'map' : 'TYMAP',
-#     'true' : 'TRUE',
-#     'false' : 'FALSE',
-#     'empty' : 'EMPTY',
-#     'bounds' : 'BOUNDS',
-# }
+
 
 # declaring token names for ply lexer to use, including reserved keywords
 tokens = [
@@ -206,6 +198,10 @@ class TokStatementList(TokStatement):
     def eval(self):
         for stmt in self.statements:
             stmt.eval()
+
+    def emit(self):
+        for stmt in self.statements:
+            stmt.emit()
 
 class TokType(TokStatement):
     def __init__(self, type, value, pos):
@@ -672,6 +668,13 @@ class TokLog(TokStatement):
     def eval(self):
         print self.first.eval()
 
+    def emit(self):
+        c.LOAD_CONST(self.first.eval())
+        c.PRINT_ITEM()
+        c.PRINT_NEWLINE()
+        c.LOAD_CONST(None)
+        c.RETURN_VALUE()
+
 # symbol("if", 20) 
 # ternary form
 class TokIf(TokStatement):
@@ -717,6 +720,7 @@ class TokVar(TokStatement):
         # send the rest into expression
         self.first = expression(0)
         advance(TokSemicolon)
+        return self
     def eval(self):
         pass
 
@@ -1041,7 +1045,13 @@ def constant(id):
 
 
 
-##### ACTUAL LEXING USING PLY #####
+
+################################################################################
+################################################################################
+#######################       PARSING TIME       ###############################
+################################################################################
+################################################################################
+
 
 def em_lexer(): # lexer,input_script):
     global remain_tokens
@@ -1097,6 +1107,11 @@ class Program(object):
         # iterates through the list of statement
         for child in self.chilluns:
             child.eval()
+
+    def emit(self):
+        for child in self.chilluns:
+            child.emit()
+
 
 
 
@@ -1175,8 +1190,18 @@ def next():
         # makes 
         return TokLast('last', 'last', 'end')
 
+
+################################################################################
+################################################################################
+#######################       COMPILER TIME      ###############################
+################################################################################
+################################################################################
+
+
+
 def compile_prog():
-    pass
+    program.emit()
+    dis(c.code())
 
 if __name__ == "__main__":
     em_lexer()
@@ -1186,3 +1211,4 @@ if __name__ == "__main__":
     program.eval()
     print "\n\nNow that we've evaluated, let's compile: \n"
     compile_prog()
+
