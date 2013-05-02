@@ -37,9 +37,7 @@ scope = None
 # }
 # """
 
-input_script = """
-log("hi")
-"""
+input_script = """log("hi")"""
 
 # input_script = """
 # //: please ignore
@@ -506,7 +504,7 @@ class TokLParen(TokTemplate):
     def nud(self):
         expr = expression()
         # expect to see a right paren, if you don't, break
-        advance(")")
+        advance(TokRParen)
         return expr
         '''HOW DO DISTINGUISH BETWEEN NUDS'''
     # def nud(self):
@@ -636,12 +634,13 @@ class TokItemIn(TokStatement):
 
 class TokLog(TokStatement):
     def stmtd(self):
-        global token
-        token = next()
-        self.second = expression(0)
-        advance(')')
+        advance()
+        self.first = expression(0)
+
+        return self
+
     def eval(self):
-        print self.second
+        print self.first.eval()
 
 # symbol("if", 20) 
 # ternary form
@@ -949,13 +948,13 @@ def constant(id):
     constant("True")
     constant("False")
 
-def advance(value=None):
+def advance(token_type=None):
     global token
-    print "value, token.value %r %r"%(value, token.value)
-    if value and token.value != value:
+    if token_type and not isinstance(token, token_type):
         print "WTF WHY IS THIS ADVANCE NOT WORKING"
-        raise SyntaxError("Expected %r" % value)
+        raise SyntaxError("Expected %r, got %r" % (token_type, token.__class__))
     token = next()
+    return token
 
 ##### ACTUAL LEXING USING PLY #####
 
@@ -1000,22 +999,29 @@ def display_lexing():
     print "\n\nList of constants: \n", constants_list, "\n\n"
 
 
-em_lexer()
-# display_lexing()
-
-
 
 ##### METHODS FOR PARSING PROCESS #####
 
+class Program(object):
+    def stmtd(self):
+        # all the baby statement lists are
+        self.chilluns = statement_list() 
+        return self
+
+    def eval(self):
+        # iterates through the list of statement
+        for child in self.chilluns:
+            child.eval()
+
 def next():
-    global remain_tokens
+    # all this purely for debugging/watching flow of parsing
     global depth
     global token
-
     if depth > 0:
         print "Depth, Method, Token", depth, "next-ed", token.type
     depth += 1
 
+    global remain_tokens
     if remain_tokens:
         # pop off the next token obj in the list and return it so it gets set to the global 'token'
         print remain_tokens[0].type
@@ -1027,25 +1033,26 @@ def next():
 # debugging counter to see how many iterations have run
 depth = 0
 def parse():
-    global token
-    global depth
-    # grabs first token off front of list
-    token = next()
-    # statements = [] # do i need this?!
+    # set token to first of whole program
+    advance()
+    p = Program()
+    p.stmtd()
+    return p
+
+def statement_list():
+    statements = []
     while not isinstance(token, TokLast):
-        if isinstance(token, TokStatement):
-            print "-----STATEMENT FOUND-----"
-            print "Depth, Method, Token", depth, "stmt-ed", token.type
-            depth += 1
-            element = token.stmtd()
-            # token.stmtd()
-        else:
-            print "-----EXPR FOUND-----"
-            element = expression()
-            # expression()
-        statements.append(element)
-    all_stmts = StatementList(statements) # but whhyyy
-    all_stmts.eval()
+        statements.append(statement())
+
+    return statements
+
+def statement():
+    # if token is statement, run it's statement denotation
+    if isinstance(token, TokStatement):
+        return token.stmtd()
+    # otherwise run the expression function
+    return expression(0)
+
 
 # NUD doesn't care about the tokens to left
     # nud --> variables, literals, prefix op
@@ -1053,7 +1060,6 @@ def parse():
     # infix ops, suffix ops
 # pratt calls this "def parse"
 def expression(rbp=0):
-    global token
     global depth
     print "Depth, Method, Token", depth, "expression-ed", token.type
     # depth += 1
@@ -1062,20 +1068,24 @@ def expression(rbp=0):
     t = token
     print t
     # make token the next one in the program
-    token = next()
+    advance()
     print token
     # leftd = denotation of the previous token
     left = t.nud()
     # until you reach a next token that has a denotation less than that of the most recent token, return the leftd
     # "lbp is a vinding power controlling operator precedence; the higher the value, the tighter a token binds to the tokens that follow"
-    while not isinstance(token, TokLast):
-        while rbp < token.lbp:
-            # when the lbp is higher than the previous token's binding power, continue on to the next token
-            t = token
-            token = next()
-            # and call t.led(leftd)
-            left = t.led(left)
-        print "returning", left
-        return left
+    while rbp < token.lbp:
+        # when the lbp is higher than the previous token's binding power, continue on to the next token
+        advance()
+        # and call t.led(leftd)
+        left = t.led(left)
+    print "returning", left
+    return left
 
-parse()
+
+if __name__ == "__main__":
+    em_lexer()
+    display_lexing()
+    program = parse()
+    print "OMG ITS RUNNING"
+    program.eval()
