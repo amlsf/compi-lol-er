@@ -37,49 +37,11 @@ input_script = open(input_file).read()
 
 
 
-# input_script = """
-# if true {
-#     log("Yay!");
-# }
-# """
-
-# input_script = """
-# int x = 5;
-# if (x < 0) {
-#     log("x is less than 0");
-# }
-# else {
-#     log("x is greater than 0");
-# }
-# """
-
-# input_script = """log("hi");"""
-
-# input_script = """
-# //: please ignore
-# this ://
-# \/ list listA = [1,2,3,4,5];
-# \/ int num1 = 20;
-# \/ int num2 = 10;
-
-# fun (int x, int y) -> funName -> int {
-#     call listThing itemin listA(-2){
-#         if listThing > 0) {
-#             y = 283 + -29 * listThing;
-#             return "some string here" + x;
-#         }
-#     }
-# }
-
-# (num1, num2) --> funName;
-# """
-
 ################################################################################
 ################################################################################
 #######################       LEXING  TIME       ###############################
 ################################################################################
 ################################################################################
-
 
 
 # declaring token names for ply lexer to use, including reserved keywords
@@ -717,8 +679,9 @@ class TokFunction(TokStatement):
         pass
     
     def emit(self):
+        # 
         # turn self.block into code object, filling in arguments with it?
-        pass
+        
 
 class TokReturn(TokStatement):
     def stmtd(self):
@@ -736,7 +699,7 @@ class TokReturn(TokStatement):
 class TokCall(TokStatement):
     def stmtd(self):
         advance(TokCall)
-        self.temp = token.value
+        self.tempvar = token.value
         # keep id in memory though it'll be changed in every iteration
         advance(TokId)
         advance(TokItemIn)
@@ -785,7 +748,15 @@ class TokCall(TokStatement):
             return self
 
     def eval(self):
+        iterList = []
+        # self.tempvar is what will be increasing after every iteration
+        if hasattr(self, 'range'):
+            for x in self.range:
+                iterList
+
+    def emit(self):
         pass
+
 
 class TokItemIn(TokStatement):
     def stmtd(self):
@@ -946,8 +917,8 @@ class TokVar(TokStatement):
         global symbol_list
         # add ID to symbol list so you can use it during assignment
         print symbol_list
-        symbol_list.append(token.value)
-        print "added %s to the symbol_list" % token.value
+        symbol_list.append(self.first)
+        print "added %s to the symbol_list" % self.first
         symbol_table[self.first] = self.second.eval()
         print "added %s as key to the value of %s" % (self.first, self.second.eval())
     def emit(self):
@@ -1501,6 +1472,7 @@ def compile_prog():
     print "Donesies"
     c.RETURN_VALUE()
     print "return value"
+    c.STOP_CODE
     dis(c.code())
 
 if __name__ == "__main__":
@@ -1511,5 +1483,5 @@ if __name__ == "__main__":
     program.eval()
     print "\n\nThat took %s milliseconds." % 'undisclosed'
     print "\n\nNow that we've evaluated, let's compile: \n"
-    # compile_prog()
+    compile_prog()
 
