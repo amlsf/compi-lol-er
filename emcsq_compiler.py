@@ -620,10 +620,6 @@ class TokLCBrace(TokTemplate):
         advance("}")
         return self
 
-'''WHAT DO I DO WITH ENDY THINGS'''
-# symbol("]")
-# symbol("}")
-
 
 
 ##### CLASSES FOR STATEMENT TOKENS #####
@@ -633,7 +629,6 @@ class TokLCBrace(TokTemplate):
 class TokArrowed(TokStatement):
     lbp = 140
 
-""" HOW DOES DOT NOTATION WORK """
 # symbol(".", 150)
 class TokDot(TokStatement):
     lbp = 150
@@ -645,7 +640,7 @@ class TokDot(TokStatement):
         advance()
         return self
 
-""" AND LISTS """
+""" Come back to this: constructing lists with infinite items """
 # symbol(",", 150)
 class TokComma(TokStatement):
     lbp = 150
@@ -814,9 +809,10 @@ class TokVar(TokStatement):
         '''add ID to official symbol table/list now or when you walk through the tree?'''
         self.first = token.value
         # send the rest into expression
-
+        advance(TokId)
+        advance(TokAssign)
         self.second = expression(0)
-        print self.second, "AAAHHHHHH WHY NONNNNNNNNNNNNNNNNNE"
+        print self.second
         advance(TokSemicolon)
         return self
     def eval(self):
@@ -827,8 +823,20 @@ class TokVar(TokStatement):
         print "added %s to the symbol_list" % token.value
         symbol_table[self.first] = self.second.eval()
         print "added %s as key to the value of %s" % (self.first, self.second.eval())
-
-
+    def emit(self):
+        symbol_table[self.first] = self.second.eval()
+        print "Set", self.first, "to", self.second.eval()
+        if c.stack_size == None:
+            print "jumping"
+            c.JUMP_FORWARD()
+        print c.stack_size
+        print symbol_table, self.first
+        c.LOAD_CONST(symbol_table[self.first])
+        print "load const"
+        c.STORE_FAST(self.first)
+        print "store fast"
+        # c.LOAD_CONST(None)
+        # c.RETURN_VALUE()
 
 ##### CLASSES FOR TYPE TOKENS #####
 
@@ -1284,12 +1292,14 @@ def next():
     global depth
     global token
     if depth > 0:
-        print "Depth, Method, Token", depth, "next-ed, starting with", token.type
+        print "Depth, Method, Token", depth, "next-ed, starting with", 
+        token.type
     depth += 1
 
     global remain_tokens
     if remain_tokens:
-        # pop off the next token obj in the list and return it so it gets set to the global 'token'
+        # pop off the next token obj in the list and return it so it 
+        # gets set to the global 'token'
         return remain_tokens.pop(0)
     else:
         # makes 
@@ -1307,6 +1317,10 @@ def next():
 
 def compile_prog():
     program.emit()
+    # how am i going to close all this off?
+    print "Donesies"
+    c.RETURN_VALUE()
+    print "return value"
     dis(c.code())
 
 if __name__ == "__main__":
@@ -1317,5 +1331,5 @@ if __name__ == "__main__":
     program.eval()
     print "\n\nThat took %s milliseconds." % 'undisclosed'
     print "\n\nNow that we've evaluated, let's compile: \n"
-    compile_prog()
+    # compile_prog()
 
