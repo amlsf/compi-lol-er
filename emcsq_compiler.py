@@ -84,8 +84,8 @@ input_script = open(input_file).read()
 
 # declaring token names for ply lexer to use, including reserved keywords
 tokens = [
-    'EMCSQ', 'SLCOMMENT', 'SEMICOLON', 'GLOBAL', 'STRING', 'LPAREN', 'RPAREN', 'LBRACK', 'RBRACK', 'LCBRACE', 'RCBRACE', 'DOT', 'COMMA', 'ARROWED', 'ASSIGN', 'PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'POWER', 'MODULO', 'LESS', 'GREATER', 'LESSEQ', 'GREATEQ', 'ISEQ', 'NOTEQ', 'ID','NUMBER',
-    'USE', 'FUN', 'RETURN', 'CALL', 'ITEMIN', 'LOG', 'IF', 'ELIF', 'ELSE', 'OR', 'ORIF', 'AND', 'NOT', 'TYNONE', 'TYINT', 'TYSTRING', 'TYLIST', 'TYBOOL', 'TYMAP', 'TRUE', 'FALSE', 'EMPTY', 'BOUNDS', 'VAR', 'PIPE'
+    'EMCSQ', 'SLCOMMENT', 'SEMICOLON', 'GLOBAL', 'STRING', 'LPAREN', 'RPAREN', 'LBRACK', 'RBRACK', 'LCBRACE', 'RCBRACE', 'DOT', 'COMMA', 'COLON', 'ARROWED', 'ASSIGN', 'PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'POWER', 'MODULO', 'LESS', 'GREATER', 'LESSEQ', 'GREATEQ', 'ISEQ', 'NOTEQ', 'ID','NUMBER',
+    'USE', 'FUN', 'RETURN', 'CALL', 'ITEMIN', 'LOG', 'IF', 'ELIF', 'ELSE', 'OR', 'ORIF', 'AND', 'NOT', 'TYNONE', 'TYINT', 'TYSTRING', 'TYLIST', 'TYBOOL', 'TYMAP', 'TRUE', 'FALSE', 'EMPTY', 'BOUNDS', 'VAR', 'PIPE', 'USERINPUT', 'BANG'
     ] #+ list(reserved.values())
 
 
@@ -384,7 +384,7 @@ class TokNotNotIn(TokTemplate):
         lbp = 60
 
 # infix("<", 60);
-class TokLess_Than(TokTemplate):
+class TokLessThan(TokTemplate):
     lbp = 60
     def leftd(self, left):
         self.first = left
@@ -397,7 +397,7 @@ class TokLess_Than(TokTemplate):
             return False
 
 # infix("<=", 60)
-class TokLess_Or_Eq(TokTemplate):
+class TokLessOrEq(TokTemplate):
     lbp = 60
     def leftd(self, left):
         self.first = left
@@ -410,7 +410,7 @@ class TokLess_Or_Eq(TokTemplate):
             return False
 
 # infix(">", 60) 
-class TokGreater_Than(TokTemplate):
+class TokGreaterThan(TokTemplate):
     lbp = 60
     def leftd(self, left):
         self.first = left
@@ -423,7 +423,7 @@ class TokGreater_Than(TokTemplate):
             return False
 
 # infix(">=", 60)
-class TokGreater_Or_Eq(TokTemplate):
+class TokGreaterOrEq(TokTemplate):
     lbp = 60
     def leftd(self, left):
         self.first = left
@@ -436,7 +436,7 @@ class TokGreater_Or_Eq(TokTemplate):
             return False
 
 # infix("!=", 60); 
-class TokNot_Eq(TokTemplate):
+class TokNotEq(TokTemplate):
     lbp = 60
     def leftd(self, left):
         self.first = left
@@ -449,7 +449,7 @@ class TokNot_Eq(TokTemplate):
             return False
 
 # infix("==", 60)
-class TokIs_Equal(TokTemplate):
+class TokIsEqual(TokTemplate):
     lbp = 60
     def leftd(self, left):
         self.first = left
@@ -645,6 +645,22 @@ class TokDot(TokStatement):
 class TokComma(TokStatement):
     lbp = 150
 
+
+class TokColon(TokStatement):
+    lbp = 0
+    def stmtd(self):
+        pass
+    def eval(self):
+        pass        
+
+class TokBang(TokStatement):
+    lbp = 0
+    def stmtd(self):
+        pass
+    def eval(self):
+        pass        
+
+
 class TokGlobal(TokStatement):
     def stmtd(self):
         pass
@@ -665,21 +681,107 @@ class TokUse(TokStatement):
     def eval(self):
         pass
 
+def funCounter(num):
+    return num
+
 class TokFunction(TokStatement):
     def stmtd(self):
-        pass
+        advance(TokFunction)
+        advance(TokLParen)
+        ''' loop to get all the arguments out'''
+        count = 0
+        if not isinstance(token, TokRParen):
+            self.args = {}
+        while isinstance(token, TokType):
+            advance(TokType)
+            self.args['arg'+str(count)] = token.value
+            print "adding", 'arg'+str(count), token.value, "to args dict"
+            count += 1
+            advance(TokId)
+            if isinstance(token, TokComma):
+                advance(TokComma)
+        advance(TokRParen)
+        advance(TokArrowed)
+        self.funName = token.value
+        print "added function name to list values: ", self.funName
+        advance(TokId)
+        advance(TokArrowed)
+        advance(TokType)
+        advance(TokLCBrace)
+        
+        self.block = statement()
+        return self
+    
     def eval(self):
+        pass
+    
+    def emit(self):
+        # turn self.block into code object, filling in arguments with it?
         pass
 
 class TokReturn(TokStatement):
     def stmtd(self):
-        pass
+        advance(TokReturn)
+        if not isinstance(token, TokSemicolon):
+            self.first = expression(0)
+        else:
+            self.first = None
     def eval(self):
-        pass
+        if self.first == None:
+            return None
+        else:
+            return self.first.eval()
 
 class TokCall(TokStatement):
     def stmtd(self):
-        pass
+        advance(TokCall)
+        self.temp = token.value
+        # keep id in memory though it'll be changed in every iteration
+        advance(TokId)
+        advance(TokItemIn)
+        # Different types of forms: #listA #someString #bounds(10)=list0-9 
+        # #bounds(3:6)=list3-6 #bounds(3:6!2)=list[3,5] #bounds(10!-1)=list0-9backwards            
+        if isinstance(token, TokId):
+            # save that identifier to iterate through later, evaluation of which is different based on type of variable
+            self.iterScope = token.value
+            print "set iterscope to ", token.value
+        else: 
+            # create an identifier to iterate through later, based on bounds
+            advance(TokBounds)
+            advance(TokLParen)
+            # first number is 
+            if isinstance(token, TokId):
+                ''' must set up system to fill anything within a function that uses/could use an argument with some PLACEHOLDER until the function is actually called--should placeholder just be variable's name? '''
+                firstNum = token.value
+            else:
+                # this is an else for when I change these to be open for variables and equations and therefore need to call expression to fill firstNum
+                firstNum = token.value
+                # firstNum = expression(0)
+            advance()
+            # if there's a colon following, then the first number was the self.fromNum, otherwise that number represents the range that the user wants to loop until, non-inclusively (so if bounds(10), it would iterate through a list of 10 items, 0 through 9)
+            if isinstance(token, TokColon):
+                self.fromNum = firstNum
+                advance(TokColon)
+                if isinstance(token, TokId):
+                    self.toNum = token.value
+                else:
+                    self.toNum = token.value
+                    # self.toNum = expression(0)
+            else:
+                self.range = firstNum
+            advance() # either number or id, must be careful when opening up to expressions as that will shift which token is "landed on" prior to continuing method
+            # if there's a '!' token then the list will be manipulated in terms of direction and/or frequency before being iterated through
+            if isinstance(token, TokBang):
+                advance(TokBang)
+                potentialFreq = expression(0)
+                # 1 is default direc/freq, so ignore it
+                if potentialFreq != 1:
+                    self.frequency = potentialFreq
+            advance(TokRParen)
+            advance(TokLCBrace)
+            self.block = statement()
+            return self
+
     def eval(self):
         pass
 
@@ -838,6 +940,13 @@ class TokVar(TokStatement):
         # c.LOAD_CONST(None)
         # c.RETURN_VALUE()
 
+
+class TokUserInput(TokStatement):
+    def stmtd(self):
+        pass
+    def eval(self):
+        pass
+
 ##### CLASSES FOR TYPE TOKENS #####
 
 class TokTypeNone(TokType):
@@ -963,6 +1072,11 @@ def t_COMMA(t):
     t = TokComma(t.type, t.value, t.lexpos)
     return t
 
+def t_COLON(t):
+    r':'
+    t = TokColon(t.type, t.value, t.lexpos)
+    return t
+
 def t_ARROWED(t):
     r'->'   # or '-->' ?
     t = TokArrowed(t.type, t.value, t.lexpos)
@@ -970,7 +1084,7 @@ def t_ARROWED(t):
 
 def t_ISEQ(t):
     r'=='
-    t = TokIs_Equal(t.type, t.value, t.lexpos)
+    t = TokIsEqual(t.type, t.value, t.lexpos)
     return t
 
 def t_ASSIGN(t):
@@ -1010,29 +1124,33 @@ def t_MODULO(t):
 
 def t_LESS(t):
     r'<'
-    t = TokLess_Than(t.type, t.value, t.lexpos)
+    t = TokLessThan(t.type, t.value, t.lexpos)
     return t
 
 def t_GREATER(t):
     r'>'
-    t = TokGreater_Than(t.type, t.value, t.lexpos)
+    t = TokGreaterThan(t.type, t.value, t.lexpos)
     return t
 
 def t_LESSEQ(t):
     r'<='
-    t = TokLess_Or_Eq(t.type, t.value, t.lexpos)
+    t = TokLessOrEq(t.type, t.value, t.lexpos)
     return t
 
 def t_GREATEQ(t):
     r'>='
-    t = TokGreater_Or_Eq(t.type, t.value, t.lexpos)
+    t = TokGreaterOrEq(t.type, t.value, t.lexpos)
     return t
 
 def t_NOTEQ(t):
     r'!='
-    t = TokNot_Eq(t.type, t.value, t.lexpos)
+    t = TokNotEq(t.type, t.value, t.lexpos)
     return t
 
+def t_BANG(t):
+    r'!'
+    t = TokBang(t.type, t.value, t.lexpos)
+    return t
 
 ##### METHODS FOR STATEMENT TOKENS #####
 
@@ -1060,6 +1178,11 @@ def t_ITEMIN(t):
     r'itemin'
     t = TokItemIn(t.type, t.value, t.lexpos)
     return t
+
+def t_BOUNDS(t):
+    r'bounds'
+    t = TokBounds(t.type, t.value, t.lexpos)
+    return t    
 
 def t_LOG(t):
     r'log'
@@ -1292,8 +1415,7 @@ def next():
     global depth
     global token
     if depth > 0:
-        print "Depth, Method, Token", depth, "next-ed, starting with", 
-        token.type
+        print "Depth, Method, Token", depth, "next-ed, starting with", token.type
     depth += 1
 
     global remain_tokens
