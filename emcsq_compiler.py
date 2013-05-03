@@ -85,7 +85,7 @@ input_script = open(input_file).read()
 # declaring token names for ply lexer to use, including reserved keywords
 tokens = [
     'EMCSQ', 'SLCOMMENT', 'SEMICOLON', 'GLOBAL', 'STRING', 'LPAREN', 'RPAREN', 'LBRACK', 'RBRACK', 'LCBRACE', 'RCBRACE', 'DOT', 'COMMA', 'COLON', 'ARROWED', 'ASSIGN', 'PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'POWER', 'MODULO', 'LESS', 'GREATER', 'LESSEQ', 'GREATEQ', 'ISEQ', 'NOTEQ', 'ID','NUMBER',
-    'USE', 'FUN', 'RETURN', 'CALL', 'ITEMIN', 'LOG', 'IF', 'ELIF', 'ELSE', 'OR', 'ORIF', 'AND', 'NOT', 'TYNONE', 'TYINT', 'TYSTRING', 'TYLIST', 'TYBOOL', 'TYMAP', 'TRUE', 'FALSE', 'EMPTY', 'BOUNDS', 'VAR', 'PIPE', 'USERINPUT', 'BANG'
+    'USE', 'FUN', 'RETURN', 'CALL', 'ITEMIN', 'LOG', 'IF', 'ELIF', 'ELSE', 'OR', 'ORIF', 'AND', 'NOT', 'TYNONE', 'TYINT', 'TYSTRING', 'TYLIST', 'TYBOOL', 'TYMAP', 'TRUE', 'FALSE', 'EMPTY', 'BOUNDS', 'VAR', 'PIPE', 'USERINPUT', 'BANG', 'SEND'
     ] #+ list(reserved.values())
 
 
@@ -190,18 +190,6 @@ class TokStatement(TokTemplate):
         self.value = value
         self.pos = pos
 
-class TokStatementList(TokStatement):
-    def __init__(self, statements):
-        self.statements = statements
-
-    def eval(self):
-        for stmt in self.statements:
-            stmt.eval()
-
-    def emit(self):
-        for stmt in self.statements:
-            stmt.emit()
-
 class TokType(TokStatement):
     def __init__(self, type, value, pos):
         self.type = type
@@ -263,6 +251,7 @@ class TokId(TokTemplate):
         return self
     def eval(self):
         symbol_list.append(self.value)
+        print "added %s to symbol_list and returning it" % self.value
         return symbol_table[self.value]
 
 class TokString(TokTemplate):
@@ -317,10 +306,13 @@ class TokOr(TokTemplate):
         return self 
     def eval(self):
         if self.first.eval() is True:
+            print "%s is true so returning True" % self.first
             return True
         elif self.second.eval() is True:
+            print "%s is true so returning True" % self.second
             return True
         else:
+            print "Neither %s nor %s are true so returning False" % (self.first, self.second)
             return False
 
 
@@ -337,8 +329,10 @@ class TokAnd(TokTemplate):
         return self 
     def eval(self):
         if self.first.eval() is True and self.second.eval() is True:
+            print "%s and %s are true so returning True" % (self.first, self.second)
             return True
         else:
+            print "Either %s or %s is false so returning False" % (self.first, self.second)
             return False
 
 # followed by "in", "not in"
@@ -463,17 +457,18 @@ class TokIsEqual(TokTemplate):
 
 # infix("+", 110) 
 class TokPlus(TokTemplate):
-    lbp = 90
+    lbp = 110
     def leftd(self, left):
         self.first = left
         self.second = expression(110)
         return self
     def eval(self):
+        print "added %r and %r" % (self.first, self.second)
         return self.first.eval() + self.second.eval()
 
 # infix("-", 110)
 class TokMinus(TokTemplate):
-    lbp = 90
+    lbp = 110
     def nulld(self):
         return -expression(110)
     def leftd(self, left):
@@ -481,49 +476,54 @@ class TokMinus(TokTemplate):
         self.second = expression(110)
         return self
     def eval(self):
+        print "subtracted %r from %r" % (self.second, self.first)
         return self.first.eval() - self.second.eval()
 
 # infix("*", 120) 
 class TokTimes(TokTemplate):
-    lbp = 90
+    lbp = 120
     def leftd(self, left):
         self.first = left
         self.second = expression(120)
         return self
     def eval(self):
+        print "multiplied %r and %r" % (self.first, self.second)
         return self.first.eval() * self.second.eval()
 
 
 # infix("/", 120)
 class TokDiv(TokTemplate):
-    lbp = 90
+    lbp = 120
     def leftd(self, left):
         self.first = left
         self.second = expression(120)
         return self 
     def eval(self):
+        print "divided %d by %d" % (self.first.eval(), self.second.eval())
         return self.first.eval() / self.second.eval()
 
 # infix("%", 120)
 class TokModulo(TokTemplate):
-    lbp = 90
+    lbp = 120
     def leftd(self, left):
         self.first = left
         self.second = expression(120)
         return self     
     def eval(self):
+        print "got remainder of %d modulo %d" % (self.first.eval(), self.second.eval())
         return self.first.eval() % self.second.eval()
 
 
 
 # infix_r("^", 140)
 class TokPower(TokTemplate):
-    lbp = 130
+    lbp = 140
     def leftd(self, left):
         self.first = left
         self.second = expression(140)
         return self 
     def eval(self):
+        print "raised %d to pow of %d" % (self.first.eval(), self.second.eval())
         return self.first.eval() % self.second.eval()
 
 
@@ -649,27 +649,27 @@ class TokComma(TokStatement):
 class TokColon(TokStatement):
     lbp = 0
     def stmtd(self):
-        pass
+        return self
     def eval(self):
         pass        
 
 class TokBang(TokStatement):
     lbp = 0
     def stmtd(self):
-        pass
+        return self
     def eval(self):
         pass        
 
 
 class TokGlobal(TokStatement):
     def stmtd(self):
-        pass
+        return self
     def eval(self):
         pass        
 
 class TokPipe(TokStatement):
     def stmtd(self):
-        pass
+        return self
     def eval(self):
         pass
 
@@ -677,7 +677,7 @@ class TokPipe(TokStatement):
 
 class TokUse(TokStatement):
     def stmtd(self):
-        pass
+        return self
     def eval(self):
         pass
 
@@ -708,8 +708,9 @@ class TokFunction(TokStatement):
         advance(TokArrowed)
         advance(TokType)
         advance(TokLCBrace)
-        
+
         self.block = statement()
+        advance(TokRCBrace)
         return self
     
     def eval(self):
@@ -779,7 +780,8 @@ class TokCall(TokStatement):
                     self.frequency = potentialFreq
             advance(TokRParen)
             advance(TokLCBrace)
-            self.block = statement()
+            self.block = block()
+            advance(TokRCBrace)
             return self
 
     def eval(self):
@@ -787,7 +789,7 @@ class TokCall(TokStatement):
 
 class TokItemIn(TokStatement):
     def stmtd(self):
-        pass
+        return self
     def eval(self):
         pass
 
@@ -824,19 +826,22 @@ class TokIf(TokStatement):
             advance(TokElif)
             self.elifcond = expression(0)
             advance(TokLCBrace)
-            self.elifresult = statement()
+            while not isinstance(token, TokRCBrace): 
+                self.elifresult = statement()
             advance(TokRCBrace)
         '''MUST FIX: cannot yet do infinite elifs with this grammar'''
         if token.type == "ELSE":
             advance(TokElse)
             self.elsecond = expression(0)
             advance(TokLCBrace)
-            self.elseresult = statement()
+            while not isinstance(token, TokRCBrace): 
+                self.elseresult = statement()
             advance(TokRCBrace)    
         # evaluate the conditional
         # if conditional true, 
         # if next token is 'elif', 
         return self
+
     def eval(self):
         if self.ifcond.eval() is True:
             print self.ifcond.eval(), "is true, so..."
@@ -856,7 +861,6 @@ class TokIf(TokStatement):
                             print self.elsecond.eval(), "is true, so..."
                             self.elseresult.eval()
                             '''could this be cleaned up? due to repeating code?'''
-
             else:
                 if hasattr(self, 'elsecond'):
                     if self.elsecond.eval() is True:
@@ -885,7 +889,7 @@ class TokIf(TokStatement):
 # ternary form
 class TokElif(TokStatement):
     def stmtd(self):
-        pass
+        return self
     def eval(self):
         pass
 
@@ -893,13 +897,34 @@ class TokElif(TokStatement):
 # ternary form
 class TokElse(TokStatement):
     def stmtd(self):
-        pass
+        return self
     def eval(self):
         pass
 
 class TokBounds(TokStatement):
     def stmtd(self):
+        return self
+    def eval(self):
         pass
+
+class TokSend(TokStatement):
+    def stmtd(self):
+        advance(TokSend)
+        advance(TokLParen)
+        self.args = []
+        self.args.append(token.value)
+        advance()
+        while not isinstance(token, TokRParen):
+            advance(TokComma)
+            self.args.append(token.value)
+            advance()
+        advance(TokRParen)
+        advance(TokArrowed)
+        self.fun = token.value
+        advance(TokId)
+        advance(TokSemicolon)
+        return self
+
     def eval(self):
         pass
 
@@ -943,7 +968,7 @@ class TokVar(TokStatement):
 
 class TokUserInput(TokStatement):
     def stmtd(self):
-        pass
+        return self
     def eval(self):
         pass
 
@@ -951,7 +976,7 @@ class TokUserInput(TokStatement):
 
 class TokTypeNone(TokType):
     def stmtd(self):
-        pass
+        return self
     def eval(self):
         pass
 
@@ -963,25 +988,25 @@ class TokTypeInt(TokType):
 
 class TokTypeString(TokType):
     def stmtd(self):
-        pass
+        return self
     def eval(self):
         pass
 
 class TokTypeList(TokType):
     def stmtd(self):
-        pass
+        return self
     def eval(self):
         pass
 
 class TokTypeBool(TokType):
     def stmtd(self):
-        pass
+        return self
     def eval(self):
         pass
 
 class TokTypeMap(TokType):
     def stmtd(self):
-        pass
+        return self
     def eval(self):
         pass
 
@@ -1184,6 +1209,11 @@ def t_BOUNDS(t):
     t = TokBounds(t.type, t.value, t.lexpos)
     return t    
 
+def t_SEND(t):
+    r'send'
+    t = TokSend(t.type, t.value, t.lexpos)
+    return t
+
 def t_LOG(t):
     r'log'
     t = TokLog(t.type, t.value, t.lexpos)
@@ -1346,6 +1376,23 @@ class Program(object):
         for child in self.chilluns:
             child.emit()
 
+class Block(object):
+    def __init__(self, statements):
+        self.chilluns = statements
+    def stmtd(self):
+        # all the baby statement lists
+        self.chilluns = block() 
+        return self
+
+    def eval(self):
+        # iterates through the list of statement
+        for child in self.chilluns:
+            child.eval()
+
+    def emit(self):
+        for child in self.chilluns:
+            child.emit()
+
 
 # debugging counter to see how many iterations have run
 depth = 0
@@ -1353,6 +1400,7 @@ def parse():
     # set token to first of whole program
     advance()
     p = Program()
+    # sets its chilluns 
     p.stmtd()
     return p
 
@@ -1361,9 +1409,19 @@ def statement_list():
     statements = []
     # make list, each item of which is either a statement or an expression
     while not isinstance(token, TokLast):
+        print "helloooooooooooooooo?", token
         statements.append(statement())
+        if isinstance(token, TokSemicolon):
+            advance(TokSemicolon)
+    print "STAAAAAAAAAAAAAAAAAAAAATE", statements
     return statements
 
+def block():
+    stmts = []
+    while not isinstance(token, TokRCBrace):
+        stmts.append(statement())
+    b = Block(stmts)
+    return b
 
 def statement():
     # if token is statement, run it's statement denotation
@@ -1389,7 +1447,7 @@ def expression(rbp=0):
     left = t.nulld()
     # until you reach a next token that has a denotation less than that of the most recent token, return the leftd
     # "lbp is a vinding power controlling operator precedence; the higher the value, the tighter a token binds to the tokens that follow"
-    print "rbp: ", rbp, "token.lbp: ", token.lbp 
+    print "rbp: ", rbp, "token.lbp: ", token.type, token.lbp 
     while (token.type != 'SEMICOLON') and (rbp < token.lbp):
         # when the lbp is higher than the previous token's binding power, continue expression to core of highest precedence
         # set prev token to the token with higher lbp
@@ -1398,7 +1456,7 @@ def expression(rbp=0):
         advance()
         # and call t.leftd to do whatever that high precedenced thing was going to do the expression
         left = t.leftd(left)
-    print "returning", left
+    print "\treturning", left
     return left
 
 
