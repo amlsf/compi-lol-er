@@ -9,6 +9,8 @@ from sys import argv
 import ply.lex as lex
 from peak.util.assembler import Code
 from dis import dis
+from timeit import Timer
+
 
 #vars for tokenizing
 output = []
@@ -29,14 +31,11 @@ scope = None
 c = Code()
 
 
-# script, input_script = argvs
+script, input_file = argv
 
-# input_script = '''
-# var int | a = 10;
-# var int | b = a * 3;
-# log(b);
-# var int | c = (b + 10) * 3;
-# '''
+input_script = open(input_file).read()
+
+
 
 # input_script = """
 # if true {
@@ -54,7 +53,7 @@ c = Code()
 # }
 # """
 
-input_script = """log("hi");"""
+# input_script = """log("hi");"""
 
 # input_script = """
 # //: please ignore
@@ -271,6 +270,8 @@ class TokString(TokTemplate):
         return self
     def eval(self):
         return self.value
+    def emit(self):
+        c.LOAD_FAST(self.value)
 
 class TokNumb(TokTemplate):
     lbp = 10
@@ -278,38 +279,67 @@ class TokNumb(TokTemplate):
         return self
     def eval(self):
         return self.value
+    def emit(self):
+        c.LOAD_FAST(self.value)
 
 class TokTrue(TokTemplate):
     def nulld(self):
         return self 
     def eval(self):
         return True
+    def emit(self):
+        c.LOAD_GLOBAL(True)
 
 class TokFalse(TokTemplate):
     def nulld(self):
         return self 
     def eval(self):
         return False
+    def emit(self):
+        c.LOAD_GLOBAL(False)
 
 class TokEmpty(TokTemplate):
     def nulld(self):
         return self 
     def eval(self):
         return None
-
+    def emit(self):
+        c.LOAD_GLOBAL(None)
 
 ##### CLASSES FOR EXPRESSION TOKENS #####
 
 # infix_r("or", 30)
 class TokOr(TokTemplate):
     lbp = 30
+    def leftd(self, left):
+        self.first = left
+        self.second = expression(30)
+        return self 
+    def eval(self):
+        if self.first.eval() is True:
+            return True
+        elif self.second.eval() is True:
+            return True
+        else:
+            return False
+
 
 class TokOrif(TokTemplate):
     lbp = 30
 
+
 # infix_r("and", 40)
 class TokAnd(TokTemplate):
     lbp = 40
+    def leftd(self, left):
+        self.first = left
+        self.second = expression(30)
+        return self 
+    def eval(self):
+        if self.first.eval() is True and self.second.eval() is True:
+            return True
+        else:
+            return False
 
 # followed by "in", "not in"
 # infix_r("not", 50)
@@ -317,7 +347,7 @@ class TokNot(TokTemplate):
     lbp = 50
     def leftd(self, left):
         self.first = left
-        self.second = expression(lbp-1)
+        self.second = expression(50)
         return self 
     def eval(self):
         if self.first.eval() != self.second.eval():
@@ -325,9 +355,20 @@ class TokNot(TokTemplate):
         else:
             return False
 
+
 # infix("in", 60)
 class TokInNotIn(TokTemplate):
     lbp = 60
+    def leftd(self, left):
+        if token.id != "in":
+            raise SyntaxError("Invalid syntax")
+        advance()
+        self.id = "not in"
+        self.first = left
+        self.second = expression(60)
+        return self
+        lbp = 60
+
 
 # infix("not", 60) # in, not in
 class TokNotNotIn(TokTemplate):
@@ -347,7 +388,7 @@ class TokLess_Than(TokTemplate):
     lbp = 60
     def leftd(self, left):
         self.first = left
-        self.second = expression(lbp-1)
+        self.second = expression(60)
         return self
     def eval(self):
         if self.first.eval() < self.second.eval():
@@ -360,7 +401,7 @@ class TokLess_Or_Eq(TokTemplate):
     lbp = 60
     def leftd(self, left):
         self.first = left
-        self.second = expression(lbp-1)
+        self.second = expression(60)
         return self 
     def eval(self):
         if self.first.eval() <= self.second.eval():
@@ -373,7 +414,7 @@ class TokGreater_Than(TokTemplate):
     lbp = 60
     def leftd(self, left):
         self.first = left
-        self.second = expression(lbp-1)
+        self.second = expression(60)
         return self 
     def eval(self):
         if self.first.eval() >= self.second.eval():
@@ -386,7 +427,7 @@ class TokGreater_Or_Eq(TokTemplate):
     lbp = 60
     def leftd(self, left):
         self.first = left
-        self.second = expression(lbp-1)
+        self.second = expression(60)
         return self 
     def eval(self):
         if self.first.eval() >= self.second.eval():
@@ -399,7 +440,7 @@ class TokNot_Eq(TokTemplate):
     lbp = 60
     def leftd(self, left):
         self.first = left
-        self.second = expression(lbp-1)
+        self.second = expression(60)
         return self 
     def eval(self):
         if self.first.eval() != self.second.eval():
@@ -412,7 +453,7 @@ class TokIs_Equal(TokTemplate):
     lbp = 60
     def leftd(self, left):
         self.first = left
-        self.second = expression(lbp-1)
+        self.second = expression(60)
         return self 
     def eval(self):
         if self.first.eval() == self.second.eval():
@@ -425,7 +466,7 @@ class TokPlus(TokTemplate):
     lbp = 90
     def leftd(self, left):
         self.first = left
-        self.second = expression(lbp-1)
+        self.second = expression(110)
         return self
     def eval(self):
         return self.first.eval() + self.second.eval()
@@ -437,7 +478,7 @@ class TokMinus(TokTemplate):
         return -expression(110)
     def leftd(self, left):
         self.first = left
-        self.second = expression(lbp-1)
+        self.second = expression(110)
         return self
     def eval(self):
         return self.first.eval() - self.second.eval()
@@ -447,7 +488,7 @@ class TokTimes(TokTemplate):
     lbp = 90
     def leftd(self, left):
         self.first = left
-        self.second = expression(lbp-1)
+        self.second = expression(120)
         return self
     def eval(self):
         return self.first.eval() * self.second.eval()
@@ -458,7 +499,7 @@ class TokDiv(TokTemplate):
     lbp = 90
     def leftd(self, left):
         self.first = left
-        self.second = expression(lbp-1)
+        self.second = expression(120)
         return self 
     def eval(self):
         return self.first.eval() / self.second.eval()
@@ -468,7 +509,7 @@ class TokModulo(TokTemplate):
     lbp = 90
     def leftd(self, left):
         self.first = left
-        self.second = expression(lbp-1)
+        self.second = expression(120)
         return self     
     def eval(self):
         return self.first.eval() % self.second.eval()
@@ -480,7 +521,7 @@ class TokPower(TokTemplate):
     lbp = 130
     def leftd(self, left):
         self.first = left
-        self.second = expression(lbp-1)
+        self.second = expression(140)
         return self 
     def eval(self):
         return self.first.eval() % self.second.eval()
@@ -553,8 +594,7 @@ class TokAssign(TokTemplate):
     lbp = 160
     def leftd (self, left):
         self.first = left
-        self.second = expression(10)
-        advance(TokSemicolon)
+        self.second = expression(160)
         return self
     def eval(self):
         symbol_table[self.first] = self.second.eval()
@@ -564,7 +604,7 @@ class TokAssign(TokTemplate):
 
 # symbol("{", 170)
 class TokLCBrace(TokTemplate):
-    lbp = 170
+    lbp = 0
     def nulld(self):
         self.first = []
         if token.type != "}":
@@ -662,7 +702,6 @@ class TokLog(TokStatement):
         advance(TokRParen)
         advance(TokSemicolon)
         global token
-        print "tok-loggin:", token.type
         return self
 
     def eval(self):
@@ -679,12 +718,72 @@ class TokLog(TokStatement):
 # ternary form
 class TokIf(TokStatement):
     def stmtd(self):
-        pass
+        advance(TokIf)
+        self.ifcond = expression(0)
+        advance(TokLCBrace)
+        self.ifresult = statement()
+        advance(TokRCBrace)
+        if token.type == "ELIF":
+            advance(TokElif)
+            self.elifcond = expression(0)
+            advance(TokLCBrace)
+            self.elifresult = statement()
+            advance(TokRCBrace)
+        '''MUST FIX: cannot yet do infinite elifs with this grammar'''
+        if token.type == "ELSE":
+            advance(TokElse)
+            self.elsecond = expression(0)
+            advance(TokLCBrace)
+            self.elseresult = statement()
+            advance(TokRCBrace)    
         # evaluate the conditional
         # if conditional true, 
-        advance('elif')
+        # if next token is 'elif', 
+        return self
     def eval(self):
-        pass
+        if self.ifcond.eval() is True:
+            print self.ifcond.eval(), "is true, so..."
+            self.ifresult.eval()
+        else:
+            print self.ifcond.eval(), "is not true, so skip THIS."
+            # checks to see if there is a self.elifcond
+            if hasattr(self, 'elifcond'):
+                if self.elifcond.eval() is True:
+                    print self.elifcond.eval(), "is true, so..."
+                    self.elifresult.eval()
+                else:
+                    print self.elifcond.eval(), "is not true, so skip THIS."
+                    # checks to see if there is a self.elsecond
+                    if hasattr(self, 'elsecond'):
+                        if self.elsecond.eval() is True:
+                            print self.elsecond.eval(), "is true, so..."
+                            self.elseresult.eval()
+                            '''could this be cleaned up? due to repeating code?'''
+
+            else:
+                if hasattr(self, 'elsecond'):
+                    if self.elsecond.eval() is True:
+                        print self.elsecond.eval(), "is true, so..."
+                        self.elseresult.eval()
+    def emit(self):
+        '''Disassembled if false print 'yay', if true print 'noooo':
+        0 LOAD_GLOBAL 0(false)
+        3 POP_JUMP_IF_False 14
+        6 LOAD_CONST 1("Yay!")
+        9 PRINT_ITEM ()
+        10 PRINT_NEWLINE
+        11 JUMP_FORWARD 14 (to 28)
+        14 LOAD_GLOBAL 1(true)
+        17 POP_JUMP_IF_FALSE 28
+        20 LOAD_CONST 2 ('nooooo')
+        23 PRINT_ITEM
+        24 PRINT_NEWLINE
+        25 JUMP_FORWARD 0 (to 28)
+        28 LOAD_CONST 0 (None)
+        31 RETURN_VALUE
+        '''
+        # c.LOAD_GLOBAL(self.ifcond.eval())
+
 # symbol("if", 20) 
 # ternary form
 class TokElif(TokStatement):
@@ -709,20 +808,25 @@ class TokBounds(TokStatement):
 
 class TokVar(TokStatement):
     def stmtd(self):
-        global symbol_list
         advance(TokVar)
         advance(TokType)
         advance(TokPipe)
         '''add ID to official symbol table/list now or when you walk through the tree?'''
-        # add ID to symbol list so you can use it during assignment
-        symbol_list += token.value
-        print "added %s to the symbol_list" % token.value
+        self.first = token.value
         # send the rest into expression
-        self.first = expression(0)
+
+        self.second = expression(0)
+        print self.second, "AAAHHHHHH WHY NONNNNNNNNNNNNNNNNNE"
         advance(TokSemicolon)
         return self
     def eval(self):
-        pass
+        global symbol_list
+        # add ID to symbol list so you can use it during assignment
+        print symbol_list
+        symbol_list.append(token.value)
+        print "added %s to the symbol_list" % token.value
+        symbol_table[self.first] = self.second.eval()
+        print "added %s as key to the value of %s" % (self.first, self.second.eval())
 
 
 
@@ -768,7 +872,6 @@ class TokTypeMap(TokType):
 # METHODS FOR CAPTURING REGEX TOKENS, MAKING OBJECTS
 
 # METHODS FOR EXPRESSION TOKENS
-
 
 def t_NUMBER(t):
     r'-?((\d+(\.\d+)?)|(\.\d+))' # should include neg/pos either '[nums]' or '[numss].[nums]' or '.[nums]''
@@ -1113,8 +1216,6 @@ class Program(object):
             child.emit()
 
 
-
-
 # debugging counter to see how many iterations have run
 depth = 0
 def parse():
@@ -1124,12 +1225,14 @@ def parse():
     p.stmtd()
     return p
 
+
 def statement_list():
     statements = []
     # make list, each item of which is either a statement or an expression
     while not isinstance(token, TokLast):
         statements.append(statement())
     return statements
+
 
 def statement():
     # if token is statement, run it's statement denotation
@@ -1167,12 +1270,14 @@ def expression(rbp=0):
     print "returning", left
     return left
 
+
 def advance(token_type=None):
     global token
     if token_type and not isinstance(token, token_type):
         raise SyntaxError("Expected %r, got %r" % (token_type, token.__class__))
     token = next()
     return token
+
 
 def next():
     # all this purely for debugging/watching flow of parsing
@@ -1191,6 +1296,7 @@ def next():
         return TokLast('last', 'last', 'end')
 
 
+
 ################################################################################
 ################################################################################
 #######################       COMPILER TIME      ###############################
@@ -1207,8 +1313,9 @@ if __name__ == "__main__":
     em_lexer()
     display_lexing()
     program = parse()
-    print "OMG ITS RUNNING. Parse ish:\n"
+    print "\n\nHOLY GRAVY, IT PARSED. Run (evaluate) it:\n"
     program.eval()
+    print "\n\nThat took %s milliseconds." % 'undisclosed'
     print "\n\nNow that we've evaluated, let's compile: \n"
     compile_prog()
 
