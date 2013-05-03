@@ -1,0 +1,70 @@
+program : stmts
+
+stmts : stmt SEMICOLON stmts
+stmts : stmt block
+
+stmt : FUN ARROWED LPAREN optparams RPAREN ID ARROWED block
+stmt : if expr block
+stmt : if expr block else block
+stmt : CALL ID ITEMIN ID LBRACK optrange optfilter
+stmt : LPAREN optparams RPAREN ARROWED ID optmethod
+stmt : ID = expr
+stmt : return expr
+stmt : expr stmt
+stmt : use ID optmethod 
+stmt : E
+
+block : LCBRACE stmts RCBRACE
+
+
+optparams : params
+optparams : E
+
+params : type ID params
+params : E
+
+optrange : NUM COMMA NUM optdirect
+optrange : E
+optdirect : COMMA NUM
+
+optfilter : LBRACE NUM RBRACE
+optfilter : E
+
+optmethod : dot ID optmethod
+optmethod : E
+
+
+expr : LPAREN expr RPAREN
+expr : expr PLUS expr
+expr : expr MINUS expr
+expr : expr TIMES expr
+expr : expr DIVIDE expr
+expr : expr POWER expr
+expr : expr MODULO expr
+expr : expr LESS expr
+expr : expr GREATER expr
+expr : expr LESSEQ expr
+expr : expr GREATEQ expr
+expr : expr ISEQ expr
+expr : expr AND expr
+expr : expr OR expr
+expr : expr NOT expr
+expr : expr NOTEQ expr
+expr : FALSE
+expr : TRUE
+expr : ID
+expr : NUM
+expr : STRING
+expr : LBRACK listems LBRACK
+expr : type
+
+listitems : listitems COMMA listitems 
+listitems : listitems
+
+type : TYNONE
+type : TYINT
+type : TYSTRING
+type : TYLIST
+type : TYBOOL
+type : TYMAP
+
