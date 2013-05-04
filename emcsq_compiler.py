@@ -423,6 +423,9 @@ class TokPlus(TokTemplate):
     def eval(self):
         print "added %r and %r" % (self.first, self.second)
         return self.first.eval() + self.second.eval()
+    def emit(self):
+        sum2 = self.first.eval() + self.second.eval()
+        c.LOAD_CONST(sum)
 
 # infix("-", 110)
 class TokMinus(TokTemplate):
@@ -560,7 +563,8 @@ class TokAssign(TokTemplate):
         print "Set", self.first, "to", self.second.eval()
     
     def emit(self):
-        pass
+        c.LOAD_CONST(self.second.eval())
+        c.STORE_FAST()
 
 # symbol("{", 170)
 class TokLCBrace(TokTemplate):
@@ -1501,8 +1505,6 @@ def next():
 ################################################################################
 ################################################################################
 
-
-
 def compile_prog():
     program.emit()
     # how am i going to close all this off?
@@ -1511,6 +1513,7 @@ def compile_prog():
     # print "return value"
     c.STOP_CODE
     dis(c.code())
+
 
 def run_tests():
     input_test = '''
@@ -1545,6 +1548,6 @@ if __name__ == "__main__":
     program.eval()
     print "\n\nThat took %s milliseconds." % 'undisclosed'
     print "\n\nNow that we've evaluated, let's compile: \n"
-    # compile_prog()
-    run_tests()
+    compile_prog()
+    # run_tests()
 
