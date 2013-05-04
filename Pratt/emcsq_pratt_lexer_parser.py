@@ -165,14 +165,14 @@ class TokTemplate(object):
         self.type = type
         self.value = value
         self.pos = pos
-    def nud(self):
+    def nulld(self):
         raise SyntaxError(
-            "Syntax error when calling nud for (%r)." % self.value
+            "Syntax error when calling nulld for (%r)." % self.value
         )
 
-    def led(self, left):
+    def leftd(self, left):
         raise SyntaxError(
-            "Syntax error when calling led for (%r)." % self.value
+            "Syntax error when calling leftd for (%r)." % self.value
         )
 
     def __repr__(self):
@@ -198,63 +198,62 @@ class TokStatementList(TokStatement):
     def __init__(self, statements):
         self.statements = statements
 
-    def std(self):
-        pass
-
     def eval(self):
         for stmt in self.statements:
             stmt.eval()
 
 
-##### CLASSES FOR EXPRESSION TOKENS #####
 
+
+##### CLASSES FOR END-Y TOKENS #####
 class TokLast(TokTemplate):
     lbp = 0
     '''is this necessary to have \/ ??'''
-    def led(self):
+    def leftd(self):
         pass
-    def nud(self):
+    def nulld(self):
         pass
 
 class TokNewLine(TokTemplate):
     lbp = 0
-    def led(self):
+    def leftd(self):
         pass
-    def nud(self):
+    def nulld(self):
         pass
 
 class TokSemicolon(TokTemplate):
     lbp = 0
-    def led(self):
+    def leftd(self):
         pass
-    def nud(self):
+    def nulld(self):
         pass
 
 class TokRParen(TokTemplate):
     lbp = 0
-    def led(self):
+    def leftd(self):
         pass
-    def nud(self):
+    def nulld(self):
         pass
 
 class TokRBrack(TokTemplate):
     lbp = 0
-    def led(self):
+    def leftd(self):
         pass
-    def nud(self):
+    def nulld(self):
         pass
 
 class TokRCBrace(TokTemplate):
     lbp = 0
-    def led(self):
+    def leftd(self):
         pass
-    def nud(self):
+    def nulld(self):
         pass
 
+##### CLASSES FOR CONSTANT TOKENS #####
 class TokId(TokTemplate):
     # '''does it need lbp?'''
     lbp = 10
-    def nud(self):
+    def nulld(self):
         symbol_list.append(self.value)
         return self
     def eval(self):
@@ -262,35 +261,38 @@ class TokId(TokTemplate):
         return symbol_table[self.value]
 
 class TokString(TokTemplate):
-    def nud(self):
+    def nulld(self):
         return self
     def eval(self):
         return self.value
 
 class TokNumb(TokTemplate):
     lbp = 10
-    def nud(self):
+    def nulld(self):
         return self
     def eval(self):
         return self.value
 
 class TokTrue(TokTemplate):
-    def nud(self):
+    def nulld(self):
         return self 
     def eval(self):
         return True
 
 class TokFalse(TokTemplate):
-    def nud(self):
+    def nulld(self):
         return self 
     def eval(self):
         return False
 
 class TokEmpty(TokTemplate):
-    def nud(self):
+    def nulld(self):
         return self 
     def eval(self):
         return None
+
+
+##### CLASSES FOR EXPRESSION TOKENS #####
 
 # infix_r("or", 30)
 class TokOr(TokTemplate):
@@ -307,7 +309,7 @@ class TokAnd(TokTemplate):
 # infix_r("not", 50)
 class TokNot(TokTemplate):
     lbp = 50
-    def led(self, left):
+    def leftd(self, left):
         self.first = left
         self.second = expression(lbp-1)
         return self 
@@ -324,7 +326,7 @@ class TokInNotIn(TokTemplate):
 # infix("not", 60) # in, not in
 class TokNotNotIn(TokTemplate):
     lbp = 60    
-    def led(self, left):
+    def leftd(self, left):
         if token.id != "in":
             raise SyntaxError("Invalid syntax")
         advance()
@@ -337,7 +339,7 @@ class TokNotNotIn(TokTemplate):
 # infix("<", 60);
 class TokLess_Than(TokTemplate):
     lbp = 60
-    def led(self, left):
+    def leftd(self, left):
         self.first = left
         self.second = expression(lbp-1)
         return self
@@ -350,7 +352,7 @@ class TokLess_Than(TokTemplate):
 # infix("<=", 60)
 class TokLess_Or_Eq(TokTemplate):
     lbp = 60
-    def led(self, left):
+    def leftd(self, left):
         self.first = left
         self.second = expression(lbp-1)
         return self 
@@ -363,7 +365,7 @@ class TokLess_Or_Eq(TokTemplate):
 # infix(">", 60) 
 class TokGreater_Than(TokTemplate):
     lbp = 60
-    def led(self, left):
+    def leftd(self, left):
         self.first = left
         self.second = expression(lbp-1)
         return self 
@@ -376,7 +378,7 @@ class TokGreater_Than(TokTemplate):
 # infix(">=", 60)
 class TokGreater_Or_Eq(TokTemplate):
     lbp = 60
-    def led(self, left):
+    def leftd(self, left):
         self.first = left
         self.second = expression(lbp-1)
         return self 
@@ -389,7 +391,7 @@ class TokGreater_Or_Eq(TokTemplate):
 # infix("!=", 60); 
 class TokNot_Eq(TokTemplate):
     lbp = 60
-    def led(self, left):
+    def leftd(self, left):
         self.first = left
         self.second = expression(lbp-1)
         return self 
@@ -402,7 +404,7 @@ class TokNot_Eq(TokTemplate):
 # infix("==", 60)
 class TokIs_Equal(TokTemplate):
     lbp = 60
-    def led(self, left):
+    def leftd(self, left):
         self.first = left
         self.second = expression(lbp-1)
         return self 
@@ -415,7 +417,7 @@ class TokIs_Equal(TokTemplate):
 # infix("+", 110) 
 class TokPlus(TokTemplate):
     lbp = 90
-    def led(self, left):
+    def leftd(self, left):
         self.first = left
         self.second = expression(lbp-1)
         return self
@@ -425,9 +427,9 @@ class TokPlus(TokTemplate):
 # infix("-", 110)
 class TokMinus(TokTemplate):
     lbp = 90
-    def nud(self):
+    def nulld(self):
         return -expression(110)
-    def led(self, left):
+    def leftd(self, left):
         self.first = left
         self.second = expression(lbp-1)
         return self
@@ -437,7 +439,7 @@ class TokMinus(TokTemplate):
 # infix("*", 120) 
 class TokTimes(TokTemplate):
     lbp = 90
-    def led(self, left):
+    def leftd(self, left):
         self.first = left
         self.second = expression(lbp-1)
         return self
@@ -448,7 +450,7 @@ class TokTimes(TokTemplate):
 # infix("/", 120)
 class TokDiv(TokTemplate):
     lbp = 90
-    def led(self, left):
+    def leftd(self, left):
         self.first = left
         self.second = expression(lbp-1)
         return self 
@@ -458,7 +460,7 @@ class TokDiv(TokTemplate):
 # infix("%", 120)
 class TokModulo(TokTemplate):
     lbp = 90
-    def led(self, left):
+    def leftd(self, left):
         self.first = left
         self.second = expression(lbp-1)
         return self     
@@ -470,22 +472,26 @@ class TokModulo(TokTemplate):
 # infix_r("^", 140)
 class TokPower(TokTemplate):
     lbp = 130
-    def led(self, left):
+    def leftd(self, left):
         self.first = left
         self.second = expression(lbp-1)
         return self 
     def eval(self):
         return self.first.eval() % self.second.eval()
 
+
+
+##### CLASSES FOR HIGH-BINDING POWER TOKENS #####
+
 # symbol("[", 150)
 class TokLBrack(TokTemplate):
     lbp = 150
-    def led(self, left):
+    def leftd(self, left):
         self.first = left
         self.second = expression()
         advance("]")
         return self
-    def nud(self):
+    def nulld(self):
         self.first = []
         if token.id != "]":
             while 1:
@@ -501,13 +507,13 @@ class TokLBrack(TokTemplate):
 # symbol("(", 150)
 class TokLParen(TokTemplate):
     lbp = 150
-    def nud(self):
+    def nulld(self):
         expr = expression()
         # expect to see a right paren, if you don't, break
         advance(TokRParen)
         return expr
-        '''HOW DO DISTINGUISH BETWEEN NUDS'''
-    # def nud(self):
+        '''HOW DO DISTINGUISH BETWEEN nulldS'''
+    # def nulld(self):
     #     self.first = []
     #     comma = False
     #     if token.value != ")":
@@ -524,7 +530,7 @@ class TokLParen(TokTemplate):
     #         return self # tuple
     #     else:
     #         return self.first[0]
-    def led(self, left):
+    def leftd(self, left):
         self.first = left
         self.second = []
         if token.value != ")":
@@ -539,7 +545,7 @@ class TokLParen(TokTemplate):
 # symbol("=", 160)
 class TokAssign(TokTemplate):
     lbp = 160
-    def led (self, left):
+    def leftd (self, left):
         self.first = left
         self.second = expression(10)
         return self
@@ -551,7 +557,7 @@ class TokAssign(TokTemplate):
 # symbol("{", 170)
 class TokLCBrace(TokTemplate):
     lbp = 170
-    def nud(self):
+    def nulld(self):
         self.first = []
         if token.type != "}":
             while 1:
@@ -586,7 +592,7 @@ class TokArrowed(TokStatement):
 # symbol(".", 150)
 class TokDot(TokTemplate):
     lbp = 150
-    def led(self, left):
+    def leftd(self, left):
         if token.type != "ID":
             SyntaxError("Expected an attribute identifier.")
         self.first = left
@@ -939,7 +945,7 @@ def argument_list(list):
 
 def constant(id):
     @method(symbol(id))
-    def nud(self):
+    def nulld(self):
         self.id = "(literal)"
         self.value = id
         return self
@@ -1054,9 +1060,9 @@ def statement():
     return expression(0)
 
 
-# NUD doesn't care about the tokens to left
-    # nud --> variables, literals, prefix op
-# LED cared about tokens to left
+# nulld doesn't care about the tokens to left
+    # nulld --> variables, literals, prefix op
+# leftd cared about tokens to left
     # infix ops, suffix ops
 # pratt calls this "def parse"
 def expression(rbp=0):
@@ -1071,21 +1077,28 @@ def expression(rbp=0):
     advance()
     print token
     # leftd = denotation of the previous token
-    left = t.nud()
+    left = t.nulld()
     # until you reach a next token that has a denotation less than that of the most recent token, return the leftd
     # "lbp is a vinding power controlling operator precedence; the higher the value, the tighter a token binds to the tokens that follow"
     while rbp < token.lbp:
         # when the lbp is higher than the previous token's binding power, continue on to the next token
         advance()
-        # and call t.led(leftd)
-        left = t.led(left)
+        # and call t.leftd(leftd)
+        left = t.leftd(left)
     print "returning", left
     return left
 
+def run():
+    em_lexer()
+    # display_lexing()
+    program = parse() 
+    # print "OMG ITS RUNNING"
+    program.eval()
 
 if __name__ == "__main__":
     em_lexer()
     display_lexing()
     program = parse()
-    print "OMG ITS RUNNING"
+    print "OMG ITS RUNNING. Parse ish:\n"
     program.eval()
+    print "\n\nNow that we've evaluated, let's compile: \n"

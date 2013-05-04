@@ -1,12 +1,40 @@
 from sys import argv
 import ply.lex as lex
 
+#vars for tokenizing
 output = []
 pratt_obj_form = []
 constants_list = []
-list_tuples_form = []
+# list_tuples_form = []
+
+#  vars for parsing
+symbol_table={}
+parse_tree = []
+token = None
+# keep scope object here
+scope = None
+# class Scope_Template(object):
+
 
 # script, input_script = argvs
+
+# input_script = "a = 10 + 2 b = a * 3 log(b) c = (b + 10) * 3"
+
+input_script = """
+if True {
+    log("Yay!");
+}
+"""
+
+# input_script = """
+# int x = 5;
+# if (x < 0) {
+#     log("x is less than 0");
+# }
+# else {
+#     log("x is greater than 0");
+# }
+# """
 
 # input_script = """
 # //: please ignore
@@ -16,16 +44,17 @@ list_tuples_form = []
 # \/ int num2 = 10;
 
 # fun (int x, int y) -> funName -> int {
-#     call listThing itemin listA[-2]{
-#         y = 283 + -29 * listThing;
-#         return "some string here" + x;
+#     call listThing itemin listA(-2){
+#         if listThing > 0) {
+#             y = 283 + -29 * listThing;
+#             return "some string here" + x;
+#         }
 #     }
 # }
 
 # (num1, num2) --> funName;
 # """
 
-input_script = "a = 10 + 2 b = a * 3 log(b) c = (b + 10) * 3"
 
 # reserved words so the longest regex (ID) isn't used first and wrongly captured as an ID token
 reserved = {
@@ -50,7 +79,9 @@ reserved = {
     'map' : 'TYMAP',
     'true' : 'TRUE',
     'false' : 'FALSE',
-    'startup' : 'STARTUP'
+    'none' : 'NONE',
+    'bounds' : 'BOUNDS',
+    'start' : 'START'
 }
 
 # declaring token names, including reserved keywords
@@ -59,7 +90,60 @@ tokens = [
     ] + list(reserved.values())
 
 
-##### CLASS FOR BASIC EXPRESSION TOKEN #####
+
+""" should carriage return \r really be ignored? """
+# Ignored characters
+t_ignore = ' \t\v\r' # ignres ALL whitespace (but not newlines, so those can be counted--just tabs, vertical tabs, and carriage returns)
+
+states = (
+    ('emcomment','exclusive'),
+)
+
+t_emcomment_ignore = ' \t\v\r'
+
+# why couldn't you ignore single line comment with this: t_ignore = r'//:'
+"""
+or perhaps you could ignore it with a definition that comes before all other definitions (though i suppose newline could mess that up because you'd NEED to make sure it was running first to be considered the right line...wait then doesn't that mean that this IGNORE thing going on here will make multi-line comments fuck up the newline count?! oh wow, you can use token.value.count('\n) even though it's being 'ignored'):
+
+def t_ONELCOMMENT(token):
+    r'//'
+    pass
+"""
+
+def t_begin_emcomment(token):
+    r'//:'
+    token.lexer.begin('emcomment')
+
+def t_emcomment_end(token):
+    r'://'
+    # makes sure to count lines
+    "but why is this in END and not in the start of the state?"
+    token.lexer.lineno += token.value.count('\n')
+    # goes back to non-comment mode
+    token.lexer.begin('INITIAL')
+
+def t_emcomment_error(token):
+    # skips over EVERYTHING you find until you get to the end of the comment
+    # this is similar to pass, but gathers up all the symbols so that you can count the newlines later at the t_emcomment_end part
+    token.lexer.skip(1)
+
+def t_newline(t):
+    r'\n+'
+    t.lexer.lineno += len(t.value)
+        # += t.value.count("\n")
+    
+def t_error(t):
+    print("Illegal character '%s'" % t.value[0])
+    t.lexer.skip(1)
+
+"""EASTER EGG SHENANIGANS...do I want to allow anything to be written within the brackets? If so, what happens with that?"""
+# def t_EMCSQ(t):
+#     r'EmC\[\]'
+#     return t
+
+
+
+##### CLASS FOR BASIC TOKEN #####
 
 class TokTemplate(object):
     def __init__(self, type, value, pos):
@@ -85,6 +169,7 @@ class TokTemplate(object):
         # return "(" + " ".join(out) + ")" # you know everything will be displayed in parentheses
 
 
+
 ##### CLASS FOR BASIC STATEMENT TOKENS #####
 
 
@@ -105,47 +190,37 @@ class TokStatementList(TokStatement):
             stmt.eval()
 
 
-# symbol("if", 20) 
-# ternary form
-class TokIf(TokTemplate):
-    lbp = 20
-    def nud(self):
-        self.first = expression(lbp)
-        self.second = None
-        return self
-    '''wait'''
-    # symbol(id).nud = nud
-    def led(self, left):
-        self.first = left
-        self.second = expression()
-        '''need advance that doesn't break --> try? expect?'''
-        advance("elif")
-        advance("else")
-        self.third = expression()
-        return self
-
-# symbol("if", 20) 
-# ternary form
-class TokElif(TokTemplate):
-    lbp = 20
-    def nud(self):
-        self.first = expression(lbp)
-        self.second = None
-        return self
-    '''wait'''
-    # symbol(id).nud = nud
+##### CLASSES FOR EXPRESSION TOKENS #####
 
 
-# symbol("if", 20) 
-# ternary form
-class TokElse(TokTemplate):
-    lbp = 20
+class TokLast(TokTemplate):
+    lbp = 0
+    '''is this necessary to have \/ ??'''
+    def led(self):
+        pass
     def nud(self):
-        self.first = expression(lbp)
-        self.second = None
+        pass
+
+class TokNewLine(TokTemplate):
+    pass
+
+class TokSemicolon(TokTemplate):
+    lbp = 0
+
+class TokId(TokTemplate):
+    # '''does it need lbp?'''
+    # lbp = 10
+    def nud (self):
         return self
-    '''wait'''
-    # symbol(id).nud = nud
+
+class TokString(TokTemplate):
+    def nud(self):
+        return self 
+
+class TokNumb(TokTemplate):
+    def nud(self):
+        return self
+
 
 
 # infix_r("or", 30)
@@ -281,30 +356,6 @@ class TokPower(TokTemplate):
         self.second = expression(lbp-1)
         return self 
 
-# symbol("\/", 135)
-class TokGlobal(TokTemplate):
-    lbp = 135
-
-# symbol("->", 140)
-class TokArrowed(TokTemplate):
-    lbp = 140
-
-""" HOW DOES DOT NOTATION WORK """
-# symbol(".", 150)
-class TokDot(TokTemplate):
-    lbp = 150
-    def led(self, left):
-        if token.id != "(name)":
-            SyntaxError("Expected an attribute name.")
-        self.first = left
-        self.second = token
-        advance()
-        return self
-
-""" AND LISTS """
-# symbol(",", 150)
-class TokComma(TokTemplate):
-    lbp = 150
 
 # symbol("[", 150)
 class TokLBrack(TokTemplate):
@@ -394,105 +445,168 @@ class TokLCBrace(TokTemplate):
 '''WHAT DO I DO WITH ENDY THINGS'''
 # symbol("]")
 # symbol("}")
-# symbol(";")
-# symbol(",")
-
-class TokId(TokTemplate):
-    '''does it need lbp?'''
-    lbp = 10
-    def nud (self):
-        return self
-
-class TokString(TokTemplate):
-    def nud(self):
-        return self 
-
-class TokNumb(TokTemplate):
-    def nud(self):
-        return self
-
-class TokEnd(TokTemplate):
-        lbp = 0
 
 
-def argument_list(list):
-    while True:
+
+##### CLASSES FOR STATEMENT TOKENS #####
+
+# symbol("\/", 135)
+class TokGlobal(TokTemplate):
+    lbp = 135
+
+# symbol("->", 140)
+class TokArrowed(TokTemplate):
+    lbp = 140
+
+""" HOW DOES DOT NOTATION WORK """
+# symbol(".", 150)
+class TokDot(TokTemplate):
+    lbp = 150
+    def led(self, left):
         if token.id != "(name)":
-            SyntaxError("Expected an argument name.")
-        list.append(token)
+            SyntaxError("Expected an attribute name.")
+        self.first = left
+        self.second = token
         advance()
-        if token.id == "=":
-            advance()
-            list.append(expression())
-        else:
-            list.append(None)
-        if token.id != ",":
-            break
-        advance(",")
-
-def constant(id):
-    @method(symbol(id))
-    def nud(self):
-        self.id = "(literal)"
-        self.value = id
         return self
 
-    constant("None")
-    constant("True")
-    constant("False")
+""" AND LISTS """
+# symbol(",", 150)
+class TokComma(TokTemplate):
+    lbp = 150
 
 
+##### CLASSES FOR STATEMENT TOKENS -- RESERVED #####
 
-""" should carriage return \r really be ignored? """
-# Ignored characters
-t_ignore = ' \t\v\r' # ignres ALL whitespace (but not newlines, so those can be counted--just tabs, vertical tabs, and carriage returns)
+class TokUse(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
 
-states = (
-    ('emcomment','exclusive'),
-)
+class TokFunction(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
 
-t_emcomment_ignore = ' \t\v\r'
+class TokReturn(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
 
-# why couldn't you ignore single line comment with this: t_ignore = r'//:'
-"""
-or perhaps you could ignore it with a definition that comes before all other definitions (though i suppose newline could mess that up because you'd NEED to make sure it was running first to be considered the right line...wait then doesn't that mean that this IGNORE thing going on here will make multi-line comments fuck up the newline count?! oh wow, you can use token.value.count('\n) even though it's being 'ignored'):
+class TokCall(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
 
-def t_ONELCOMMENT(token):
-    r'//'
-    pass
-"""
+class TokItemIn(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
 
-def t_begin_emcomment(token):
-    r'//:'
-    token.lexer.begin('emcomment')
+class TokLog(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
 
-def t_emcomment_end(token):
-    r'://'
-    # makes sure to count lines
-    "but why is this in END and not in the start of the state?"
-    token.lexer.lineno += token.value.count('\n')
-    # goes back to non-comment mode
-    token.lexer.begin('INITIAL')
+# symbol("if", 20) 
+# ternary form
+class TokIf(TokTemplate):
+    def stmtd():
+        pass
+    def eval(self):
+        pass
+# symbol("if", 20) 
+# ternary form
+class TokElif(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
 
-def t_emcomment_error(token):
-    # skips over EVERYTHING you find until you get to the end of the comment
-    # this is similar to pass, but gathers up all the symbols so that you can count the newlines later at the t_emcomment_end part
-    token.lexer.skip(1)
+# symbol("if", 20) 
+# ternary form
+class TokElse(TokTemplate):
+    def stmtd():
+        pass
+    def eval(self):
+        pass
 
-def t_newline(t):
-    r'\n+'
-    t.lexer.lineno += len(t.value)
-        # += t.value.count("\n")
-    
-def t_error(t):
-    print("Illegal character '%s'" % t.value[0])
-    t.lexer.skip(1)
+class TokTypeNone(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
 
-"""EASTER EGG SHENANIGANS...do I want to allow anything to be written within the brackets? If so, what happens with that?"""
-# def t_EMCSQ(t):
-#     r'EmC\[\]'
-#     return t
+class TokTypeInt(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
 
+class TokTypeString(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
+
+class TokTypeList(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
+
+class TokTypeBool(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
+
+class TokTypeMap(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
+
+class TokTrue(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
+
+class TokFalse(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
+
+class TokTypeEmpty(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
+
+class TokTypeStart(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
+
+class TokTypeBounds(TokTemplate):
+    def stmtd():
+        pass
+    def eval():
+        pass
+
+
+# METHODS FOR CAPTURING REGEX TOKENS, MAKING OBJECTS
+
+# METHODS FOR EXPRESSION TOKENS
 def t_ID(t):
     r'[a-zA-Z_][a-zA-Z0-9_]*'
     t.type = reserved.get(t.value,'ID')
@@ -641,6 +755,19 @@ def t_NOTEQ(t):
     return t
 
 
+##### METHODS FOR STATEMENT TOKENS #####
+
+# def t_IF(t):
+#     r'if'
+#     t = TokIf(t.type, t.value, t.lexpos)
+#     return t
+
+
+
+
+##### ACTUAL LEXING USING PLY #####
+
+
 # Build the lexer
 emcsqlexer = lex.lex()
 
@@ -671,6 +798,7 @@ print constants_list
 
 # def em_lexer(lexer,input_script):
 #   pass
+
 
 
 def argument_list(list):
@@ -718,7 +846,7 @@ def parse(program):
     statements = []
     while not isinstance(token, LastToken):
         if isinstance(token, TokStatement):
-            element = token.std()
+            element = token.stmtd()
         else:
             element = expression()
             # how do you force a newlinetoken?

@@ -6,12 +6,12 @@ input_script = """
 //: please ignore
 this ://
 \/ list listA = [1,2,3,4,5];
-\/ int num1 = 5;
+\/ int num1 = 20;
 \/ int num2 = 10;
 
-fun (int x, int y) --> funName --> int {
+fun (int x, int y) -> funName -> int {
     call listThing itemin listA[-2]{
-        y = 3 + 4 * listThing;
+        y = 283 + -29 * listThing;
         return "some string here" + x;
     }
 }
@@ -20,6 +20,15 @@ fun (int x, int y) --> funName --> int {
 """
 
 # input_script = "a = 10 + 2 b = a * 3 log(b) c = (b + 10) * 3"
+
+Class TokenObj():
+    def __init__(self, name, value, pos):
+        self.name = name
+        self.value = value
+        self.pos = pos
+    def __repr__(self):
+        return "Name: %s; Value: %s; Position: %s" % (self.name, self.value, self.pos)
+
 
 # reserved words so the longest regex (ID) isn't used first and wrongly captured as an ID token
 reserved = {
@@ -69,7 +78,7 @@ t_RCBRACE    = r'\}'
 
 t_DOT       = r'\.'
 t_COMMA     = r','
-t_ARROWED   = r'-->'   # or '->' ?
+t_ARROWED   = r'->'   # or '->' ?
 
 t_ISEQ    = r'=='
 t_ASSIGN  = r'='
@@ -156,98 +165,37 @@ def t_NUMBER(t):
     return t
 
     
+
 # Build the lexer
 emcsqlexer = lex.lex()
 
 # def tokenize():
 emcsqlexer.input(input_script)
 
+
 # Tokenizer
 string_form = ''
 output = []
-pratt_form = []
+pratt_eff_form = []
+constants_list = []
 while True:
     tok = emcsqlexer.token()
+    
     if not tok: break
-    # output.append(tok)
-    # pratt_form += [(tok.type, tok.value)]
-    string_form += "('%s', '%s')" % (tok.type, tok.value)
+    
+    output.append(tok)
+    pratt_eff_form += [(tok.type, tok.value)]
+    string_form += "%s %s" % (tok.type, tok.value)
+
+    if tok.type == 'STRING' or tok.type == 'NUMBER':
+        constants_list += (tok.type, tok.value)
     # print tok.type, tok.value, tok.lexpos
 # prints it in a way pratt parser could use
-print string_form
-print pratt_form
+# print string_form
+# print pratt_eff_form
+print constants_list
 
 
-def em_lexer(lexer,input_script):
-  lexer.input(input_script)
-  result = [ ] 
-  while True:
-    tok = lexer.token()
-    if not tok: break
-    result = result + [tok.type]
-  return result
+# def em_lexer(lexer,input_script):
+#   pass
   
-
-# # Parsing rules
-
-# precedence = (
-#     ('left','PLUS','MINUS'),
-#     ('left','TIMES','DIVIDE'),
-#     ('right','UMINUS'),
-#     )
-
-# # dictionary of names
-# names = { }
-
-# def p_statement_assign(t):
-#     'statement : NAME EQUALS expression'
-#     names[t[1]] = t[3]
-
-# def p_statement_expr(t):
-#     'statement : expression'
-#     print(t[1])
-
-# def p_expression_binop(t):
-#     '''expression : expression PLUS expression
-#                   | expression MINUS expression
-#                   | expression TIMES expression
-#                   | expression DIVIDE expression'''
-#     if t[2] == '+'  : t[0] = t[1] + t[3]
-#     elif t[2] == '-': t[0] = t[1] - t[3]
-#     elif t[2] == '*': t[0] = t[1] * t[3]
-#     elif t[2] == '/': t[0] = t[1] / t[3]
-
-# def p_expression_uminus(t):
-#     'expression : MINUS expression %prec UMINUS'
-#     t[0] = -t[2]
-
-# def p_expression_group(t):
-#     'expression : LPAREN expression RPAREN'
-#     t[0] = t[2]
-
-# def p_expression_number(t):
-#     'expression : NUMBER'
-#     t[0] = t[1]
-
-# def p_expression_name(t):
-#     'expression : NAME'
-#     try:
-#         t[0] = names[t[1]]
-#     except LookupError:
-#         print("Undefined name '%s'" % t[1])
-#         t[0] = 0
-
-# def p_error(t):
-#     print("Syntax error at '%s'" % t.value)
-
-
-
-# import ply.yacc as yacc
-# yacc.yacc()
-
-# while 1:
-#     try:
-#         s = input('calc > ')   # Use raw_input on Python 2
-#     except EOFError:
-#         break
-#     yacc.parse(s)
