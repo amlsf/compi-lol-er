@@ -48,8 +48,6 @@ tokens = [
     ] #+ list(reserved.values())
 
 
-
-""" should carriage return \r really be ignored? """
 # Ignored characters
 t_ignore = ' \t\v\r' # ignres ALL whitespace (but not newlines, so those can be counted--just tabs, vertical tabs, and carriage returns)
 
@@ -58,15 +56,6 @@ states = (
 )
 
 t_emcomment_ignore = ' \t\v\r'
-
-# why couldn't you ignore single line comment with this: t_ignore = r'//:'
-"""
-or perhaps you could ignore it with a definition that comes before all other definitions (though i suppose newline could mess that up because you'd NEED to make sure it was running first to be considered the right line...wait then doesn't that mean that this IGNORE thing going on here will make multi-line comments fuck up the newline count?! oh wow, you can use token.value.count('\n) even though it's being 'ignored'):
-
-def t_ONELCOMMENT(token):
-    r'//'
-    pass
-"""
 
 # def t_SLCOMMENT(t):
 #     r'//[^:][^\n]*'
@@ -79,7 +68,6 @@ def t_begin_emcomment(token):
 def t_emcomment_end(token):
     r'://'
     # makes sure to count lines
-    "but why is this in END and not in the start of the state?"
     token.lexer.lineno += token.value.count('\n')
     # goes back to non-comment mode
     token.lexer.begin('INITIAL')
@@ -99,9 +87,9 @@ def t_error(t):
     print("Illegal character '%s'" % t.value[0])
     t.lexer.skip(1)
 
-"""
-EASTER EGG SHENANIGANS...do I want to allow anything to be written within the brackets? If so, what do I wan to happen with that?
-"""
+
+# TODO: EASTER EGG SHENANIGANS...do I want to allow anything to be written within the brackets? If so, what do I want to happen with that?
+
 # def t_EMCSQ(t):
 #     r'EmC\[\]'
 #     return t
@@ -161,7 +149,6 @@ class TokType(TokStatement):
 ##### CLASSES FOR END-Y TOKENS #####
 class TokLast(TokTemplate):
     lbp = 0
-    '''is this necessary to have \/ ??'''
     def leftd(self):
         pass
     def nulld(self):
@@ -211,17 +198,13 @@ class TokId(TokTemplate):
         return self
     
     def eval(self):
-        symbol_list.append(self.value)
-        print "added %s to symbol_list" % self.value
         return symbol_table[self.value]
     
     def emit(self, c):
-        """
-        Fix: context specific actions for id's. 
-        - When being assigned (in tokvar or tokassign), this will be a store_fast
-            --> therefore, this should be load_const and 
-        - All other times, this should be a load_const because whatever the id is pointing to should be used in an expression instead
-        """
+        # TODO: Fix: context specific actions for id's. 
+        # - When being assigned (in tokvar or tokassign), this will be a store_fast
+            # --> therefore, this should be load_const and 
+        # - All other times, this should be a load_const because whatever the id is pointing to should be used in an expression instead
         print "load const of whatever's mapped to", self.value, ":", symbol_table[self.value]
         c.LOAD_CONST(symbol_table[self.value])
 
@@ -556,7 +539,7 @@ class TokLParen(TokTemplate):
         # expect to see a right paren, if you don't, break
         advance(TokRParen)
         return expr
-        '''HOW DO DISTINGUISH BETWEEN nulldS'''
+        # TODO: HOW DO DISTINGUISH BETWEEN nullds, do I need both?
     # def nulld(self):
     #     self.first = []
     #     comma = False
@@ -639,7 +622,6 @@ class TokDot(TokStatement):
         advance()
         return self
 
-""" Come back to this: constructing lists with infinite items """
 # symbol(",", 150)
 class TokComma(TokStatement):
     lbp = 150
@@ -711,7 +693,7 @@ class TokFunction(TokStatement):
     def stmtd(self):
         advance(TokFunction)
         advance(TokLParen)
-        ''' loop to get all the arguments out'''
+        # TODO: make function that loop sto get all the arguments out for every token that requires it
         count = 0
         if not isinstance(token, TokRParen):
             self.args = {}
@@ -731,11 +713,6 @@ class TokFunction(TokStatement):
         advance(TokArrowed)
         advance(TokType)
         advance(TokLCBrace)
-        """
-        check if no return statement at end, if none, gotta emit:
-        c.LOAD.CONST(0)
-        c.RETURN_VALUE()
-        """
         self.block = block()
         advance(TokRCBrace)
         return self
@@ -802,7 +779,7 @@ class TokCall(TokStatement):
             advance(TokLParen)
             # first number is 
             if isinstance(token, TokId):
-                ''' must set up system to fill anything within a function that uses/could use an argument with some PLACEHOLDER until the function is actually called--should placeholder just be variable's name? '''
+                # TODO: must set up system to fill anything within a function that uses/could use an argument with some PLACEHOLDER until the function is actually called--should placeholder just be variable's name?
                 firstNum = token.value
             else:
                 # this is an else for when I change these to be open for variables and equations and therefore need to call expression to fill firstNum
@@ -835,7 +812,7 @@ class TokCall(TokStatement):
             return self
 
     def eval(self):
-        '''DOING THIS WITHOUT PYTHON LIST MANIPULATION for better visualization of translating it into bytecode based on what's really happening'''
+        # DOING THIS WITHOUT PYTHON LIST MANIPULATION for better visualization of translating it into bytecode based on what's really happening
         # self.tempvar is what will be increasing after every iteration
         # self.range is if just 1 number exists, create complete list
         # global 
@@ -921,7 +898,7 @@ class TokIf(TokStatement):
             while not isinstance(token, TokRCBrace): 
                 self.elifresult = statement()
             advance(TokRCBrace)
-        '''MUST FIX: cannot yet do infinite elifs with this grammar'''
+        # TODO: cannot yet do infinite elifs with this grammar
         if token.type == "ELSE":
             advance(TokElse)
             self.elsecond = expression(0)
@@ -1030,7 +1007,7 @@ class TokVar(TokStatement):
         advance(TokVar)
         advance(TokType)
         advance(TokPipe)
-        '''add ID to official symbol table/list now or when you walk through the tree?'''
+        # TODO: add ID to official symbol table/list now or when you walk through the tree?
         self.newvar = token.value
         # send the rest into expression
         advance(TokId)
@@ -1046,22 +1023,28 @@ class TokVar(TokStatement):
                 self.setvalue.append(token.value)
                 advance()
             print self.setvalue
+            advance(TokRBrack)
         elif isinstance(token, TokLCBrace):
             self.setvalue = {}
             advance(TokLBrack)
             tempkey = token.value
-            advance()
-            advance()
-            self.setvalue[token.value]
-            advance()
+            advance() # advance past whatever the key is
+            advance(TokArrowed)
+            self.setvalue[tempkey] = token.value
+            # TODO: make dictionarys able to take things other than ID's, constants
+            advance() # advance past whatever the value is
             while not isinstance(token, TokRBrack):
                 advance(TokComma)
-                self.setvalue.append(token.value)
-                advance()
+                tempkey = token.value
+                advance() # advance past whatever the key is
+                advance(TokArrowed)
+                self.setvalue[tempkey] = token.value
+                advance() # advance past whatever the value is
             print self.setvalue
+            advance(TokRCBrace)
         else: 
             self.setvalue = expression(0)
-        print "WHAT ARE WE SETTING THINGS TOOOOOOOO:", self.second
+        print "WHAT ARE WE SETTING THINGS TOOOOOOOO:", self.setvalue
         advance(TokSemicolon)
         return self
 
@@ -1080,7 +1063,7 @@ class TokVar(TokStatement):
             pass
         elif isinstance(self.setvalue, types.DictType):
             pass
-        elif:
+        else:
             self.setvalue.emit(c)
         c.STORE_FAST(self.newvar)
         print "ASSIIIIIIIIGN: store fast", self.newvar
@@ -1529,11 +1512,9 @@ def statement_list():
     statements = []
     # make list, each item of which is either a statement or an expression
     while not isinstance(token, TokLast):
-        print "helloooooooooooooooo?", token
         statements.append(statement())
         if isinstance(token, TokSemicolon):
             advance(TokSemicolon)
-    print "STAAAAAAAAAAAAAAAAAAAAATE", statements
     return statements
 
 def block():
