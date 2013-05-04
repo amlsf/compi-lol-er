@@ -11,13 +11,13 @@ from dis import dis
 from timeit import Timer
 import marshal#, struct, time, types
 
-#vars for tokenizing
+# vars for tokenizing
 output = []
 remain_tokens = []
 constants_list = []
 # list_tuples_form = []
 
-#  vars for parsing
+# vars for parsing
 symbol_table={}
 symbol_list = []
 parse_tree = []
@@ -26,8 +26,10 @@ token = None
 scope = None
 
 # vars for compiling
-
-c = Code()
+current_fun_return = False
+# function names mapped to their code objects
+fun_defs = {}
+# c = Code()
 
 script, input_file = argv
 input_script = open(input_file).read()
@@ -207,17 +209,22 @@ class TokId(TokTemplate):
     def nulld(self):
         symbol_list.append(self.value)
         return self
+    
     def eval(self):
         symbol_list.append(self.value)
         print "added %s to symbol_list" % self.value
         return symbol_table[self.value]
+    
+    def emit(self, c):
+        print "store fast", symbol_table[self.value]
+        c.LOAD_CONST(symbol_table[self.value])
 
 class TokString(TokTemplate):
     def nulld(self):
         return self
     def eval(self):
         return self.value
-    def emit(self):
+    def emit(self, c):
         c.LOAD_FAST(self.value)
 
 class TokNumb(TokTemplate):
@@ -226,7 +233,7 @@ class TokNumb(TokTemplate):
         return self
     def eval(self):
         return self.value
-    def emit(self):
+    def emit(self, c):
         c.LOAD_FAST(self.value)
 
 class TokTrue(TokTemplate):
@@ -234,7 +241,7 @@ class TokTrue(TokTemplate):
         return self 
     def eval(self):
         return True
-    def emit(self):
+    def emit(self, c):
         c.LOAD_GLOBAL(True)
 
 class TokFalse(TokTemplate):
@@ -242,7 +249,7 @@ class TokFalse(TokTemplate):
         return self 
     def eval(self):
         return False
-    def emit(self):
+    def emit(self, c):
         c.LOAD_GLOBAL(False)
 
 class TokEmpty(TokTemplate):
@@ -250,7 +257,7 @@ class TokEmpty(TokTemplate):
         return self 
     def eval(self):
         return None
-    def emit(self):
+    def emit(self, c):
         c.LOAD_GLOBAL(None)
 
 ##### CLASSES FOR EXPRESSION TOKENS #####
@@ -423,9 +430,9 @@ class TokPlus(TokTemplate):
     def eval(self):
         print "added %r and %r" % (self.first, self.second)
         return self.first.eval() + self.second.eval()
-    def emit(self):
-        sum2 = self.first.eval() + self.second.eval()
-        c.LOAD_CONST(sum)
+    def emit(self, c):
+        self.first.emit(c) + self.second.emit(c)
+        c.BINARY_ADD()
 
 # infix("-", 110)
 class TokMinus(TokTemplate):
@@ -439,6 +446,10 @@ class TokMinus(TokTemplate):
     def eval(self):
         print "subtracted %r from %r" % (self.second, self.first)
         return self.first.eval() - self.second.eval()
+    def emit(self, c):
+        self.first.emit(c)
+        self.second.emit(c)
+        c.BINARY_SUBTRACT()
 
 # infix("*", 120) 
 class TokTimes(TokTemplate):
@@ -450,6 +461,10 @@ class TokTimes(TokTemplate):
     def eval(self):
         print "multiplied %r and %r" % (self.first, self.second)
         return self.first.eval() * self.second.eval()
+    def emit(self, c):
+        self.first.emit(c)
+        self.second.emit(c)
+        c.BINARY_MULTIPLY()
 
 
 # infix("/", 120)
@@ -459,9 +474,15 @@ class TokDiv(TokTemplate):
         self.first = left
         self.second = expression(120)
         return self 
+    
     def eval(self):
         print "divided %d by %d" % (self.first.eval(), self.second.eval())
         return self.first.eval() / self.second.eval()
+    
+    def emit(self, c):
+        self.first.emit(c)
+        self.second.emit(c)
+        c.BINARY_DIVIDE()
 
 # infix("%", 120)
 class TokModulo(TokTemplate):
@@ -473,7 +494,10 @@ class TokModulo(TokTemplate):
     def eval(self):
         print "got remainder of %d modulo %d" % (self.first.eval(), self.second.eval())
         return self.first.eval() % self.second.eval()
-
+    def emit(self, c):
+        self.first.emit(c)
+        self.second.emit(c)
+        c.BINARY_MODULO()
 
 
 # infix_r("^", 140)
@@ -484,9 +508,12 @@ class TokPower(TokTemplate):
         self.second = expression(140)
         return self 
     def eval(self):
-        print "raised %d to pow of %d" % (self.first.eval(), self.second.eval())
-        return self.first.eval() % self.second.eval()
-
+        print "raised %d to pow of %d" ** (self.first.eval(), self.second.eval())
+        return self.first.eval() ** self.second.eval()
+    def emit(self, c):
+        self.first.emit(c)
+        self.second.emit(c)
+        c.BINARY_POWER()
 
 
 ##### CLASSES FOR HIGH-BINDING POWER TOKENS #####
@@ -562,9 +589,9 @@ class TokAssign(TokTemplate):
         symbol_table[self.first] = self.second.eval()
         print "Set", self.first, "to", self.second.eval()
     
-    def emit(self):
-        c.LOAD_CONST(self.second.eval())
-        c.STORE_FAST()
+    def emit(self, c):
+        self.second.emit(c)
+        c.STORE_FAST(self.first)
 
 # symbol("{", 170)
 class TokLCBrace(TokTemplate):
@@ -597,7 +624,7 @@ class TokDot(TokStatement):
     lbp = 150
     def leftd(self, left):
         if token.type != "ID":
-            SyntaxError("Expected an attribute identifier.")
+            SyntaxError("Expected an attribute identifier for dot notation.")
         self.first = left
         self.second = token
         advance()
@@ -640,9 +667,36 @@ class TokPipe(TokStatement):
 
 class TokUse(TokStatement):
     def stmtd(self):
+        advance(TokUse)
+        self.first = (token.value)
+        self.second = []
+        advance(TokId)
+        while not isinstance(token, TokSemicolon):
+            advance(TokDot)
+            self.first.append(token.value)
+            advance(TokId)
+        advance(TokSemicolon)
         return self
+
     def eval(self):
-        pass
+        methods = ''
+        if len(self.second) > 1:
+            return from self.first import self.second[0].self.second[1]
+        elif len(self.second) < 2:
+            return from self.first import self.second[0]
+        else:
+            return import self.first
+
+    def emit(self, c):
+        c.LOAD_CONST(-1)
+        c.LOAD_CONST(self.second)
+        c.IMPORT_NAME(self.first)
+        if len(self.second) > 1:
+            c.IMPORT_FROM(self.second)
+            c.STORE_FAST(self.second)
+        c.STORE_FAST(self.first)
+        c.POP_TOP
+
 
 class TokFunction(TokStatement):
     def stmtd(self):
@@ -654,8 +708,8 @@ class TokFunction(TokStatement):
             self.args = {}
         while isinstance(token, TokType):
             advance(TokType)
-            self.args['arg'+str(count)] = token.value
-            print "adding", 'arg'+str(count), token.value, "to args dict"
+            self.args["arg"+str(count)] = token.value
+            print "adding", "arg"+str(count), token.value, "to args dict"
             count += 1
             advance(TokId)
             if isinstance(token, TokComma):
@@ -680,14 +734,25 @@ class TokFunction(TokStatement):
     def eval(self):
         pass 
     
-    def emit(self):
-        pass
+    def emit(self, c):
         '''
         code objects fun: 
         funObj.co_filename represents 
         funObj.co_name will say module even though it could be function or class
         '''
-        # fun_obj = compile(self.block, '<self.funName>', 'exec')# turn self.block into code object, filling in arguments with it?
+        new_block = Code()
+        print new_block.co_filename
+        fun_defs[new_block.co_filename] = new_block
+        self.block.emit(new_block)
+        
+        # if nothing was returned, return silently
+        if current_fun_return == False:
+            new_block.LOAD_CONST(None)
+            new_block.RETURN_VALUE()
+
+        c.LOAD_CONST(new_block)
+        c.MAKE_FUNCTION()
+
 
         
 class TokReturn(TokStatement):
@@ -702,6 +767,11 @@ class TokReturn(TokStatement):
             return None
         else:
             return self.first.eval()
+    def emit(self, c):
+        global current_fun_return
+        self.first.emit(c)
+        c.RETURN_VALUE()
+        current_fun_return = True
 
 
 class TokCall(TokStatement):
@@ -787,13 +857,13 @@ class TokCall(TokStatement):
         # after the loop is done, variable is removed from symbol_table so the name can be used again
         del symbol_table[self.tempvar]
 
-    def emit(self):
+    def emit(self, c):
         c.STORE_FAST(self.list)
         c.SETUP_LOOP()
         c.LOAD_FAST()
         c.GET_ITER
         c.FOR_ITER
-        self.block.emit()
+        self.block.emit(c)
         c.JUMP_ABSOLUTE
         c.POP_BLOCK
 
@@ -816,12 +886,12 @@ class TokLog(TokStatement):
     def eval(self):
         print self.first.eval()
 
-    def emit(self):
-        c.LOAD_CONST(self.first.eval())
+    def emit(self, c):
+        self.first.emit(c)
         c.PRINT_ITEM()
         c.PRINT_NEWLINE()
-        c.LOAD_CONST(None)
-        c.RETURN_VALUE()
+        # c.LOAD_CONST(None)
+        # c.RETURN_VALUE()
 
 # symbol("if", 20) 
 # ternary form
@@ -876,7 +946,7 @@ class TokIf(TokStatement):
                     if self.elsecond.eval() is True:
                         print self.elsecond.eval(), "is true, so..."
                         self.elseresult.eval()
-    def emit(self):
+    def emit(self, c):
         '''Disassembled if false print 'yay', if true print 'noooo':
         0 LOAD_GLOBAL 0(false)
         3 POP_JUMP_IF_False 14
@@ -937,6 +1007,11 @@ class TokSend(TokStatement):
 
     def eval(self):
         pass
+    
+    def emit(self, c):
+        for arg in self.args:
+            c.LOAD_CONST
+        # get function object from dictionary
 
 class TokVar(TokStatement):
     def stmtd(self):
@@ -962,15 +1037,14 @@ class TokVar(TokStatement):
         symbol_table[self.first] = self.second.eval()
         print "added %s as key to the value of %s" % (self.first, self.second.eval())
     
-    def emit(self):
+    def emit(self, c):
         symbol_table[self.first] = self.second.eval()
         print "Set", self.first, "to", self.second.eval()
-        if c.stack_size == None:
-            print "jumping"
-            c.JUMP_FORWARD()
-        print c.stack_size
-        print symbol_table, self.first
-        c.LOAD_CONST(symbol_table[self.first])
+        # if c.stack_size == None:
+        #     print "jumping"
+        #     c.JUMP_FORWARD()
+        # print c.stack_size
+        self.first.emit(c)
         print "load const"
         c.STORE_FAST(self.first)
         print "store fast"
@@ -1384,9 +1458,9 @@ class Program(object):
         for child in self.chilluns:
             child.eval()
 
-    def emit(self):
+    def emit(self, c):
         for child in self.chilluns:
-            child.emit()
+            child.emit(c)
 
 class Block(object):
     def __init__(self, statements):
@@ -1401,9 +1475,9 @@ class Block(object):
         for child in self.chilluns:
             child.eval()
 
-    def emit(self):
+    def emit(self, c):
         for child in self.chilluns:
-            child.emit()
+            child.emit(c)
 
 
 # debugging counter to see how many iterations have run
@@ -1505,14 +1579,15 @@ def next():
 ################################################################################
 ################################################################################
 
-def compile_prog():
-    program.emit()
-    # how am i going to close all this off?
+def generate_bytecode():
+    c = Code()
+    program.emit(c)
     print "Donesies"
-    # c.RETURN_VALUE()
-    # print "return value"
-    c.STOP_CODE
+    c.LOAD_CONST(None)
+    c.RETURN_VALUE()
     dis(c.code())
+    eval(c.code())
+
 
 
 def run_tests():
@@ -1548,6 +1623,8 @@ if __name__ == "__main__":
     program.eval()
     print "\n\nThat took %s milliseconds." % 'undisclosed'
     print "\n\nNow that we've evaluated, let's compile: \n"
-    compile_prog()
     # run_tests()
+    generate_bytecode()
+    # dis(c)
+    # compile(c)
 
