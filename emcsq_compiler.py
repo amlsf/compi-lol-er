@@ -216,7 +216,13 @@ class TokId(TokTemplate):
         return symbol_table[self.value]
     
     def emit(self, c):
-        print "store fast", symbol_table[self.value]
+        """
+        Fix: context specific actions for id's. 
+        - When being assigned (in tokvar or tokassign), this will be a store_fast
+            --> therefore, this should be load_const and 
+        - All other times, this should be a load_const because whatever the id is pointing to should be used in an expression instead
+        """
+        print "load const of whatever's mapped to", self.value, ":", symbol_table[self.value]
         c.LOAD_CONST(symbol_table[self.value])
 
 class TokString(TokTemplate):
@@ -225,7 +231,7 @@ class TokString(TokTemplate):
     def eval(self):
         return self.value
     def emit(self, c):
-        c.LOAD_FAST(self.value)
+        c.LOAD_CONST(self.value)
 
 class TokNumb(TokTemplate):
     lbp = 10
@@ -234,7 +240,8 @@ class TokNumb(TokTemplate):
     def eval(self):
         return self.value
     def emit(self, c):
-        c.LOAD_FAST(self.value)
+        print "load const:", self.value
+        c.LOAD_CONST(self.value)
 
 class TokTrue(TokTemplate):
     def nulld(self):
@@ -431,8 +438,10 @@ class TokPlus(TokTemplate):
         print "added %r and %r" % (self.first, self.second)
         return self.first.eval() + self.second.eval()
     def emit(self, c):
-        self.first.emit(c) + self.second.emit(c)
+        self.first.emit(c)
+        self.second.emit(c)
         c.BINARY_ADD()
+        print "binary adding going down"
 
 # infix("-", 110)
 class TokMinus(TokTemplate):
@@ -680,12 +689,12 @@ class TokUse(TokStatement):
 
     def eval(self):
         methods = ''
-        if len(self.second) > 1:
-            return from self.first import self.second[0].self.second[1]
-        elif len(self.second) < 2:
-            return from self.first import self.second[0]
-        else:
-            return import self.first
+        # if len(self.second) > 1:
+            # from self.first import self.second[0].self.second[1]
+        # if len(self.second) < 2:
+        #     from self.first import self.second[0]
+        # else:
+        import self.first
 
     def emit(self, c):
         c.LOAD_CONST(-1)
@@ -858,8 +867,11 @@ class TokCall(TokStatement):
         del symbol_table[self.tempvar]
 
     def emit(self, c):
-        c.STORE_FAST(self.list)
         c.SETUP_LOOP()
+        for listItem in self.list:
+            c.LOAD_CONST(listItem)
+        c.BUILD_LIST(len(self.list))
+        c.STORE_FAST()
         c.LOAD_FAST()
         c.GET_ITER
         c.FOR_ITER
@@ -880,13 +892,13 @@ class TokLog(TokStatement):
         self.first = expression(0)
         advance(TokRParen)
         advance(TokSemicolon)
-        global token
         return self
 
     def eval(self):
         print self.first.eval()
 
     def emit(self, c):
+        print "OHAAAAAAAAAY", self.first
         self.first.emit(c)
         c.PRINT_ITEM()
         c.PRINT_NEWLINE()
@@ -1019,37 +1031,59 @@ class TokVar(TokStatement):
         advance(TokType)
         advance(TokPipe)
         '''add ID to official symbol table/list now or when you walk through the tree?'''
-        self.first = token.value
+        self.newvar = token.value
         # send the rest into expression
         advance(TokId)
         advance(TokAssign)
-        self.second = expression(0)
-        print self.second
+        # if assignment is creating a list
+        if isinstance(token, TokLBrack):
+            self.setvalue = []
+            advance(TokLBrack)
+            self.setvalue.append(token.value)
+            advance()
+            while not isinstance(token, TokRBrack):
+                advance(TokComma)
+                self.setvalue.append(token.value)
+                advance()
+            print self.setvalue
+        elif isinstance(token, TokLCBrace):
+            self.setvalue = {}
+            advance(TokLBrack)
+            tempkey = token.value
+            advance()
+            advance()
+            self.setvalue[token.value]
+            advance()
+            while not isinstance(token, TokRBrack):
+                advance(TokComma)
+                self.setvalue.append(token.value)
+                advance()
+            print self.setvalue
+        else: 
+            self.setvalue = expression(0)
+        print "WHAT ARE WE SETTING THINGS TOOOOOOOO:", self.second
         advance(TokSemicolon)
         return self
 
     def eval(self):
         global symbol_list
         # add ID to symbol list so you can use it during assignment
-        print symbol_list
-        symbol_list.append(self.first)
-        print "added %s to the symbol_list" % self.first
-        symbol_table[self.first] = self.second.eval()
-        print "added %s as key to the value of %s" % (self.first, self.second.eval())
+        symbol_list.append(self.newvar)
+        print "added %s to the symbol_list" % self.newvar
+        symbol_table[self.newvar] = self.setvalue.eval()
+        print "added %s as key to the value of %s" % (self.newvar, self.setvalue.eval())
     
     def emit(self, c):
-        symbol_table[self.first] = self.second.eval()
-        print "Set", self.first, "to", self.second.eval()
-        # if c.stack_size == None:
-        #     print "jumping"
-        #     c.JUMP_FORWARD()
-        # print c.stack_size
-        self.first.emit(c)
-        print "load const"
-        c.STORE_FAST(self.first)
-        print "store fast"
-        # c.LOAD_CONST(None)
-        # c.RETURN_VALUE()
+        symbol_table[self.newvar] = self.setvalue.eval()
+        print "Setting", self.newvar, "to", self.setvalue, " eval:", self.setvalue.eval()
+        if isinstance(self.setvalue, types.ListType):
+            pass
+        elif isinstance(self.setvalue, types.DictType):
+            pass
+        elif:
+            self.setvalue.emit(c)
+        c.STORE_FAST(self.newvar)
+        print "ASSIIIIIIIIGN: store fast", self.newvar
 
 
 class TokUserInput(TokStatement):
