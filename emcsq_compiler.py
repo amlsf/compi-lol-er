@@ -4,13 +4,12 @@
 ################################################################################
 ############################################ a compiler by emily gasca #########
 
-
 from sys import argv
 import ply.lex as lex
 from peak.util.assembler import Code
 from dis import dis
 from timeit import Timer
-
+import marshal#, struct, time, types
 
 #vars for tokenizing
 output = []
@@ -23,18 +22,15 @@ symbol_table={}
 symbol_list = []
 parse_tree = []
 token = None
-# keep scope object here
+# am I going to make scope an object?
 scope = None
-# class Scope_Template(object):
 
 # vars for compiling
+
 c = Code()
 
-
 script, input_file = argv
-
 input_script = open(input_file).read()
-
 
 
 ################################################################################
@@ -42,7 +38,6 @@ input_script = open(input_file).read()
 #######################       LEXING  TIME       ###############################
 ################################################################################
 ################################################################################
-
 
 # declaring token names for ply lexer to use, including reserved keywords
 tokens = [
@@ -102,11 +97,12 @@ def t_error(t):
     print("Illegal character '%s'" % t.value[0])
     t.lexer.skip(1)
 
-"""EASTER EGG SHENANIGANS...do I want to allow anything to be written within the brackets? If so, what happens with that?"""
+"""
+EASTER EGG SHENANIGANS...do I want to allow anything to be written within the brackets? If so, what do I wan to happen with that?
+"""
 # def t_EMCSQ(t):
 #     r'EmC\[\]'
 #     return t
-
 
 
 ##### CLASS FOR BASIC TOKEN #####
@@ -213,7 +209,7 @@ class TokId(TokTemplate):
         return self
     def eval(self):
         symbol_list.append(self.value)
-        print "added %s to symbol_list and returning it" % self.value
+        print "added %s to symbol_list" % self.value
         return symbol_table[self.value]
 
 class TokString(TokTemplate):
@@ -558,11 +554,13 @@ class TokAssign(TokTemplate):
         self.first = left
         self.second = expression(160)
         return self
+    
     def eval(self):
         symbol_table[self.first] = self.second.eval()
         print "Set", self.first, "to", self.second.eval()
-        return
-
+    
+    def emit(self):
+        pass
 
 # symbol("{", 170)
 class TokLCBrace(TokTemplate):
@@ -585,7 +583,6 @@ class TokLCBrace(TokTemplate):
 
 
 ##### CLASSES FOR STATEMENT TOKENS #####
-
 
 # symbol("->", 140)
 class TokArrowed(TokStatement):
@@ -643,9 +640,6 @@ class TokUse(TokStatement):
     def eval(self):
         pass
 
-def funCounter(num):
-    return num
-
 class TokFunction(TokStatement):
     def stmtd(self):
         advance(TokFunction)
@@ -670,19 +664,28 @@ class TokFunction(TokStatement):
         advance(TokArrowed)
         advance(TokType)
         advance(TokLCBrace)
-
-        self.block = statement()
+        """
+        check if no return statement at end, if none, gotta emit:
+        c.LOAD.CONST(0)
+        c.RETURN_VALUE()
+        """
+        self.block = block()
         advance(TokRCBrace)
         return self
     
     def eval(self):
-        pass
+        pass 
     
     def emit(self):
-        # 
-        # turn self.block into code object, filling in arguments with it?
-        
+        pass
+        '''
+        code objects fun: 
+        funObj.co_filename represents 
+        funObj.co_name will say module even though it could be function or class
+        '''
+        # fun_obj = compile(self.block, '<self.funName>', 'exec')# turn self.block into code object, filling in arguments with it?
 
+        
 class TokReturn(TokStatement):
     def stmtd(self):
         advance(TokReturn)
@@ -695,6 +698,7 @@ class TokReturn(TokStatement):
             return None
         else:
             return self.first.eval()
+
 
 class TokCall(TokStatement):
     def stmtd(self):
@@ -748,15 +752,46 @@ class TokCall(TokStatement):
             return self
 
     def eval(self):
-        iterList = []
+        '''DOING THIS WITHOUT PYTHON LIST MANIPULATION for better visualization of translating it into bytecode based on what's really happening'''
         # self.tempvar is what will be increasing after every iteration
+        # self.range is if just 1 number exists, create complete list
+        # global 
+        iterList = []
         if hasattr(self, 'range'):
-            for x in self.range:
-                iterList
+            x = 0
+            while x < self.range:
+                iterList.append(x)
+                x += 1
+        if hasattr(self, 'fromNum'):
+            x = self.fromNum
+            while x < self.toNum:
+                iterList.append(x)
+                x += 1
+        if hasattr(self, 'frequency'):
+            if self.frequency < 0:
+                # reverse list
+                pass
+            if self.frequency > 1 or self.frequence <-1:
+                # take out every _ one
+                pass
+        print "LIST FOR ITERATIONNNNNNNNNNNNNNNN", iterList
+        self.list = iterList
+        for x in iterList:
+            # changes value in the symbol table so that wherever it's used, it will have the correct value
+            symbol_table[self.tempvar] = x
+            self.block.eval()
+        # after the loop is done, variable is removed from symbol_table so the name can be used again
+        del symbol_table[self.tempvar]
 
     def emit(self):
-        pass
-
+        c.STORE_FAST(self.list)
+        c.SETUP_LOOP()
+        c.LOAD_FAST()
+        c.GET_ITER
+        c.FOR_ITER
+        self.block.emit()
+        c.JUMP_ABSOLUTE
+        c.POP_BLOCK
 
 class TokItemIn(TokStatement):
     def stmtd(self):
@@ -913,6 +948,7 @@ class TokVar(TokStatement):
         print self.second
         advance(TokSemicolon)
         return self
+
     def eval(self):
         global symbol_list
         # add ID to symbol list so you can use it during assignment
@@ -921,6 +957,7 @@ class TokVar(TokStatement):
         print "added %s to the symbol_list" % self.first
         symbol_table[self.first] = self.second.eval()
         print "added %s as key to the value of %s" % (self.first, self.second.eval())
+    
     def emit(self):
         symbol_table[self.first] = self.second.eval()
         print "Set", self.first, "to", self.second.eval()
@@ -1470,10 +1507,35 @@ def compile_prog():
     program.emit()
     # how am i going to close all this off?
     print "Donesies"
-    c.RETURN_VALUE()
-    print "return value"
+    # c.RETURN_VALUE()
+    # print "return value"
     c.STOP_CODE
     dis(c.code())
+
+def run_tests():
+    input_test = '''
+    call num itemin bounds(0:10!) {
+        log(num);
+    }
+    '''
+    input_test = '''
+    fun (int maxNum, string pointless, int wtf) -> fizzBuzz -> int { 
+        call num itemin bounds(0:maxNum!-1) {
+            if (num % 3 == 0) { 
+                log("Fizz");
+            }
+            if (num % 5 == 0) {
+                log("Buzz");
+            }
+            elif (num % 3 != 0) {
+                log(num);
+            }
+        }
+    }
+    var string|blah = "interrupting variables on top of stack and ish";
+    send(5, "DERP", 100) -> fizzbuzz;
+    '''
+
 
 if __name__ == "__main__":
     em_lexer()
@@ -1483,5 +1545,6 @@ if __name__ == "__main__":
     program.eval()
     print "\n\nThat took %s milliseconds." % 'undisclosed'
     print "\n\nNow that we've evaluated, let's compile: \n"
-    compile_prog()
+    # compile_prog()
+    run_tests()
 
