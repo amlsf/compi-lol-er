@@ -1,0 +1,5 @@
+fun (int maxNum, string pointless, int wtf) -> fizzBuzz -> int { 
+	log(maxNum);
+}
+
+send(5, "DERP", 100) -> fizzBuzz;
