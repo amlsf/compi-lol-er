@@ -766,7 +766,7 @@ class TokFunction(TokStatement):
             new_block.RETURN_VALUE()
 
         c.LOAD_CONST(new_block)
-        c.MAKE_FUNCTION()
+        c.MAKE_FUNCTION(self.funName)
         fun_defs[self.funName] = new_block
         c.STORE_FAST(self.funName)
 
@@ -789,7 +789,7 @@ class TokReturn(TokStatement):
         c.RETURN_VALUE()
         current_fun_return = True
 
-
+# EMC[]'s for loop
 class TokCall(TokStatement):
     def stmtd(self):
         advance(TokCall)
@@ -874,6 +874,35 @@ class TokCall(TokStatement):
         del symbol_table[self.tempvar]
 
     def emit(self, c):
+        iterList = []
+        if hasattr(self, 'range'):
+            x = 0
+            print self.range
+            while x < self.range:
+                iterList.append(x)
+                x += 1
+        if hasattr(self, 'fromNum'):
+            x = self.fromNum
+            print self.toNum
+            while x < self.toNum:
+                iterList.append(x)
+                x += 1
+        if hasattr(self, 'frequency'):
+            if self.frequency < 0:
+                # reverse list
+                pass
+            if self.frequency > 1 or self.frequence <-1:
+                # take out every _ one
+                pass
+        print "LIST FOR ITERATIONNNNNNNNNNNNNNNN", iterList
+        self.list = iterList
+        for x in iterList:
+            # changes value in the symbol table so that wherever it's used, it will have the correct value
+            symbol_table[self.tempvar] = x
+            self.block.eval()
+        # after the loop is done, variable is removed from symbol_table so the name can be used again
+        del symbol_table[self.tempvar]
+
         c.SETUP_LOOP()
         for listItem in self.list:
             c.LOAD_CONST(listItem)
@@ -1047,37 +1076,7 @@ class TokVar(TokStatement):
         advance(TokId)
         advance(TokAssign)
         # if assignment is creating a list
-        if isinstance(token, TokLBrack):
-            self.setvalue = []
-            advance(TokLBrack)
-            self.setvalue.append(token.value)
-            advance()
-            while not isinstance(token, TokRBrack):
-                advance(TokComma)
-                self.setvalue.append(token.value)
-                advance()
-            print self.setvalue
-            advance(TokRBrack)
-        elif isinstance(token, TokLCBrace):
-            self.setvalue = {}
-            advance(TokLCBrace)
-            tempkey = token.value
-            advance() # advance past whatever the key is
-            advance(TokArrowed)
-            self.setvalue[tempkey] = token.value
-            # TODO: make dictionarys able to take things other than ID's, constants
-            advance() # advance past whatever the value is
-            while not isinstance(token, TokRCBrace):
-                advance(TokComma)
-                tempkey = token.value
-                advance() # advance past whatever the key is
-                advance(TokArrowed)
-                self.setvalue[tempkey] = token.value
-                advance() # advance past whatever the value is
-            print self.setvalue
-            advance(TokRCBrace)
-        else: 
-            self.setvalue = expression(0)
+        self.setvalue = type_data()
         print "WHAT ARE WE SETTING THINGS TOOOOOOOO:", self.setvalue
         advance(TokSemicolon)
         return self
@@ -1168,27 +1167,6 @@ def t_STRING(t):
     sansquotes = t.value[1:-1]
     t = TokString(t.type, sansquotes, t.lexpos)
     return t
-
-# TODO: add ability to capture other data types besides ID's and numbers
-# TODO: why are strings breaking the capture of lists?
-# captures an ID of words/numbers maybe followed by an infinite amount of comma+datatype pairs
-def t_LIST(t):
-    r'''(\[\s?(?:[\w+_]+|(?:"[^"]*")|(?:'[^"]*')|(?:-?\d+(?:\.\d+)?))(?:\s?,\s?[\w+_]+|(?:"[^"]*")|(?:'[^"]*')|(?:-?\d+(?:\.\d+)?)\s?)*\])'''
-    t = TokList(t.type, t.value, t.lexpos)
-    return t
-
-# TODO: implement maps
-# def t_MAP(t):
-#     r'("[^"]*")'  # |(\'[^']*\')' # must have line count
-#     t = TokMap(t.type, t.value, t.lexpos)
-#     return t
-
-# TODO: implement classes
-# def t_CLASS(t):
-#     r'class'  # |(\'[^']*\')' # must have line count
-#     t = TokClass(t.type, t.value, t.lexpos)
-#     return t
-
 
 def t_TRUE(t):
     r'true'
@@ -1465,7 +1443,6 @@ def constant(id):
     constant("True")
     constant("False")
 
-# TODO: this is potentially obsolete now
 def type_data():
     if isinstance(token, TokLBrack):
         data = []
@@ -1496,6 +1473,7 @@ def type_data():
         advance(TokRCBrace)
     else: 
         data = expression(0)
+    return data
 
 
 
