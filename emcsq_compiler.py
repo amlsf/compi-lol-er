@@ -44,7 +44,7 @@ input_script = open(input_file).read()
 # declaring token names for ply lexer to use, including reserved keywords
 tokens = [
     'EMCSQ', 'SLCOMMENT', 'SEMICOLON', 'GLOBAL', 'STRING', 'LPAREN', 'RPAREN', 'LBRACK', 'RBRACK', 'LCBRACE', 'RCBRACE', 'DOT', 'COMMA', 'COLON', 'ARROWED', 'ASSIGN', 'PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'POWER', 'MODULO', 'LESS', 'GREATER', 'LESSEQ', 'GREATEQ', 'ISEQ', 'NOTEQ', 'ID','NUMBER',
-    'USE', 'FUN', 'RETURN', 'CALL', 'ITEMIN', 'LOG', 'IF', 'ELIF', 'ELSE', 'OR', 'ORIF', 'AND', 'NOT', 'TYNONE', 'TYINT', 'TYSTRING', 'TYLIST', 'TYBOOL', 'TYMAP', 'TRUE', 'FALSE', 'EMPTY', 'BOUNDS', 'VAR', 'PIPE', 'USERINPUT', 'BANG', 'SEND'
+    'USE', 'FUN', 'RETURN', 'CALL', 'ITEMIN', 'LOG', 'IF', 'ELIF', 'ELSE', 'OR', 'ORIF', 'AND', 'NOT', 'TYNONE', 'TYINT', 'TYSTRING', 'TYLIST', 'TYBOOL', 'TYMAP', 'TRUE', 'FALSE', 'EMPTY', 'BOUNDS', 'VAR', 'PIPE', 'USERINPUT', 'BANG', 'SEND', 'LIST', 'MAP'
     ] #+ list(reserved.values())
 
 
@@ -202,7 +202,7 @@ class TokId(TokTemplate):
     
     def emit(self, c):
         # TODO: Fix: context specific actions for id's. 
-        # - When being assigned (in tokvar or tokassign), this will be a store_fast
+        # - When being assigned (in tok var or tok assign), this will be a store_fast
             # --> therefore, this should be load_const and 
         # - All other times, this should be a load_const because whatever the id is pointing to should be used in an expression instead
         print "load const of whatever's mapped to", self.value, ":", symbol_table[self.value]
@@ -249,6 +249,36 @@ class TokEmpty(TokTemplate):
         return None
     def emit(self, c):
         c.LOAD_GLOBAL(None)
+
+class TokList(TokTemplate):
+    # list = [1]
+    def nulld(self):
+        return self
+    # list[1]
+    def leftd(self):
+        # get the name out of dictionary
+        # what form is this? is self.value able to be used as a normal list?
+        return self
+    def eval(self):
+        return self.value
+    def emit(self, c):
+        c.LOAD_CONST(self.value)
+
+class TokMap(TokTemplate):
+    def nulld(self):
+        return self
+    def eval(self):
+        return self.value
+    def emit(self, c):
+        c.LOAD_CONST(self.value)
+
+class TokClass(TokTemplate):
+    def nulld(self):
+        return self
+    def eval(self):
+        return self.value
+    def emit(self, c):
+        c.LOAD_CONST(self.value)
 
 ##### CLASSES FOR EXPRESSION TOKENS #####
 
@@ -727,8 +757,7 @@ class TokFunction(TokStatement):
         funObj.co_name will say module even though it could be function or class
         '''
         new_block = Code()
-        print new_block.co_filename
-        fun_defs[new_block.co_filename] = new_block
+        print "FUNNNNNNNNNNNNNNNNNN", new_block.co_filename
         self.block.emit(new_block)
         
         # if nothing was returned, return silently
@@ -738,7 +767,8 @@ class TokFunction(TokStatement):
 
         c.LOAD_CONST(new_block)
         c.MAKE_FUNCTION()
-
+        fun_defs[self.funName] = new_block
+        c.STORE_FAST(self.funName)
 
         
 class TokReturn(TokStatement):
@@ -989,7 +1019,7 @@ class TokSend(TokStatement):
             advance()
         advance(TokRParen)
         advance(TokArrowed)
-        self.fun = token.value
+        self.funName = token.value
         advance(TokId)
         advance(TokSemicolon)
         return self
@@ -998,8 +1028,12 @@ class TokSend(TokStatement):
         pass
     
     def emit(self, c):
+        c.LOAD_FAST(fun_defs[self.funName])
         for arg in self.args:
-            c.LOAD_CONST
+            if isinstance(arg, ):
+                c.LOAD_CONST(arg)
+            elif isinstance(arg, ):
+                c.LOAD_FAST(arg)
         # get function object from dictionary
 
 class TokVar(TokStatement):
@@ -1026,14 +1060,14 @@ class TokVar(TokStatement):
             advance(TokRBrack)
         elif isinstance(token, TokLCBrace):
             self.setvalue = {}
-            advance(TokLBrack)
+            advance(TokLCBrace)
             tempkey = token.value
             advance() # advance past whatever the key is
             advance(TokArrowed)
             self.setvalue[tempkey] = token.value
             # TODO: make dictionarys able to take things other than ID's, constants
             advance() # advance past whatever the value is
-            while not isinstance(token, TokRBrack):
+            while not isinstance(token, TokRCBrace):
                 advance(TokComma)
                 tempkey = token.value
                 advance() # advance past whatever the key is
@@ -1119,7 +1153,7 @@ class TokTypeMap(TokType):
 # METHODS FOR EXPRESSION TOKENS
 
 def t_NUMBER(t):
-    r'-?((\d+(\.\d+)?)|(\.\d+))' # should include neg/pos either '[nums]' or '[numss].[nums]' or '.[nums]''
+    r'-?((\d+(\.\d+)?)|(\.\d+))' # should include neg/pos either '[nums]' or '[nums].[nums]' or '.[nums]''
     try:
         t.value = int(t.value)
     except ValueError:
@@ -1130,9 +1164,31 @@ def t_NUMBER(t):
     return t
 
 def t_STRING(t):
-    r'("[^"]*")'  # |(\'[^']*\')' # must have line count
-    t = TokString(t.type, t.value, t.lexpos)
+    r'''("[^"]*")|('[^"]*')'''  # |(\'[^']*\')' # must have line count
+    sansquotes = t.value[1:-1]
+    t = TokString(t.type, sansquotes, t.lexpos)
     return t
+
+# TODO: add ability to capture other data types besides ID's and numbers
+# TODO: why are strings breaking the capture of lists?
+# captures an ID of words/numbers maybe followed by an infinite amount of comma+datatype pairs
+def t_LIST(t):
+    r'''(\[\s?(?:[\w+_]+|(?:"[^"]*")|(?:'[^"]*')|(?:-?\d+(?:\.\d+)?))(?:\s?,\s?[\w+_]+|(?:"[^"]*")|(?:'[^"]*')|(?:-?\d+(?:\.\d+)?)\s?)*\])'''
+    t = TokList(t.type, t.value, t.lexpos)
+    return t
+
+# TODO: implement maps
+# def t_MAP(t):
+#     r'("[^"]*")'  # |(\'[^']*\')' # must have line count
+#     t = TokMap(t.type, t.value, t.lexpos)
+#     return t
+
+# TODO: implement classes
+# def t_CLASS(t):
+#     r'class'  # |(\'[^']*\')' # must have line count
+#     t = TokClass(t.type, t.value, t.lexpos)
+#     return t
+
 
 def t_TRUE(t):
     r'true'
@@ -1158,7 +1214,6 @@ def t_GLOBAL(t):
     r'\\/'
     t = TokGlobal(t.type, t.value, t.lexpos)
     return t
-
 
 def t_LPAREN(t):
     r'\('
@@ -1410,6 +1465,37 @@ def constant(id):
     constant("True")
     constant("False")
 
+# TODO: this is potentially obsolete now
+def type_data():
+    if isinstance(token, TokLBrack):
+        data = []
+        advance(TokLBrack)
+        data.append(token.value)
+        advance()
+        while not isinstance(token, TokRBrack):
+            advance(TokComma)
+            data.append(token.value)
+            advance()
+        advance(TokRBrack)
+    elif isinstance(token, TokLCBrace):
+        data = {}
+        advance(TokLCBrace)
+        tempkey = token.value
+        advance() # advance past whatever the key is
+        advance(TokArrowed)
+        data[tempkey] = token.value
+        # TODO: make dictionarys able to take things other than ID's, constants
+        advance() # advance past whatever the value is
+        while not isinstance(token, TokRCBrace):
+            advance(TokComma)
+            tempkey = token.value
+            advance() # advance past whatever the key is
+            advance(TokArrowed)
+            data[tempkey] = token.value
+            advance() # advance past whatever the value is
+        advance(TokRCBrace)
+    else: 
+        data = expression(0)
 
 
 
