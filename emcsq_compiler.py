@@ -206,7 +206,7 @@ class TokId(TokTemplate):
             # --> therefore, this should be load_const and 
         # - All other times, this should be a load_const because whatever the id is pointing to should be used in an expression instead
         print "load const of whatever's mapped to", self.value, ":", symbol_table[self.value]
-        c.LOAD_CONST(symbol_table[self.value])
+        c.LOAD_FAST(self.value)
 
 class TokString(TokTemplate):
     def nulld(self):
@@ -737,8 +737,8 @@ class TokFunction(TokStatement):
                 advance(TokComma)
         advance(TokRParen)
         advance(TokArrowed)
-        self.funName = token.value
-        print "added function name to list values: ", self.funName
+        self.fun_name = token.value
+        print "added function name to list values: ", self.fun_name
         advance(TokId)
         advance(TokArrowed)
         advance(TokType)
@@ -758,18 +758,19 @@ class TokFunction(TokStatement):
         '''
         new_block = Code()
         print "FUNNNNNNNNNNNNNNNNNN", new_block.co_filename
+        new_block.co_argcount = len(self.args)
         self.block.emit(new_block)
         
         # if nothing was returned, return silently
         if current_fun_return == False:
             new_block.LOAD_CONST(None)
             new_block.RETURN_VALUE()
-
-        c.LOAD_CONST(new_block)
-        c.MAKE_FUNCTION(self.funName)
-        fun_defs[self.funName] = new_block
-        c.STORE_FAST(self.funName)
-
+        print self.args
+        c.LOAD_CONST(new_block.code())
+        c.MAKE_FUNCTION(0)
+        fun_defs[self.fun_name] = new_block
+        c.STORE_FAST(self.fun_name)
+        dis(new_block.code())
         
 class TokReturn(TokStatement):
     def stmtd(self):
@@ -938,8 +939,6 @@ class TokLog(TokStatement):
         self.first.emit(c)
         c.PRINT_ITEM()
         c.PRINT_NEWLINE()
-        # c.LOAD_CONST(None)
-        # c.RETURN_VALUE()
 
 # symbol("if", 20) 
 # ternary form
@@ -1040,16 +1039,21 @@ class TokSend(TokStatement):
         advance(TokSend)
         advance(TokLParen)
         self.args = []
-        self.args.append(token.value)
+        self.args.append(token)
         advance()
         while not isinstance(token, TokRParen):
             advance(TokComma)
-            self.args.append(token.value)
+            self.args.append(token)
             advance()
         advance(TokRParen)
         advance(TokArrowed)
-        self.funName = token.value
+        self.fun_name = token.value
         advance(TokId)
+        # grammar has optional assignment of results
+        if isinstance(token,TokArrowed):
+            advance(TokArrowed)
+            self.result_dump = token.value
+            advance()
         advance(TokSemicolon)
         return self
 
@@ -1057,12 +1061,18 @@ class TokSend(TokStatement):
         pass
     
     def emit(self, c):
-        c.LOAD_FAST(fun_defs[self.funName])
+        c.LOAD_FAST(self.fun_name)
+        print self.args
         for arg in self.args:
-            if isinstance(arg, ):
-                c.LOAD_CONST(arg)
-            elif isinstance(arg, ):
-                c.LOAD_FAST(arg)
+            arg.emit(c)
+        # CALL_FUNCTION takes 2 args: 1=positional args, 2=keyword args
+        c.CALL_FUNCTION(len(self.args), 0)
+        # if it's being assigned to something, it'll automatically pop the function results off the stack by way of "STORE_FAST"
+        if hasattr(self, 'result_dump'):
+            c.STORE_FAST(self.result_dump)
+        # if it just runs things, the results or None will need to be popped off
+        else:
+            c.POP_TOP()
         # get function object from dictionary
 
 class TokVar(TokStatement):
