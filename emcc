@@ -873,7 +873,7 @@ class TokCall(TokStatement):
         # if not manipulating list first, it's much easier
         if hasattr(self, 'range'):
             print self.range, "raaaaaaaaaaange"
-            c.LOAD_GLOBAL(xrange)
+            c.LOAD_GLOBAL('xrange')
             print "LOAD_GLOBAL(xrange)"
             c.LOAD_CONST(self.range.value)
             print "LOAD_CONST(%s)" % self.range.value
@@ -883,7 +883,7 @@ class TokCall(TokStatement):
         elif hasattr(self, 'from_num'):
             self.from_num = get_value(self.from_num)
             self.to_num = get_value(self.to_num)
-            c.LOAD_GLOBAL(xrange)
+            c.LOAD_GLOBAL('xrange')
             print "LOAD_GLOBAL(xrange)"
             c.LOAD_CONST(self.from_num.value)
             print "LOAD_CONST(%s)" % self.from_num.value
@@ -892,23 +892,56 @@ class TokCall(TokStatement):
             # creates the appropriate list 
             c.CALL_FUNCTION(2, 0)
             print "CALL_FUNCTION(2 args[start, stop-exclusive], 0 key args)"
-
         c.GET_ITER()
         print "GET_ITER(the list created/loaded)"
         # that forward stuff goes here probably
-        c.FOR_ITER()
+        loop_start = c.here()
+        print "LOOP START =", loop_start
+        loop_end = c.FOR_ITER()
         print "FOR_ITER(sets line to jump back to after every runthrough of the body)"
         # TODO: how does one get the correct variable name? do you pass it in with 'c' when emitting?
         c.STORE_FAST(self.tempvar)
-        print "STORE_FAST(temp var name:", self.tempvar
+        print "STORE_FAST(temp var name:", self.tempvar,")"
+        # c.LOAD_FAST(self.tempvar)
+        # print "LOAD_FAST", self.tempvar
         self.block.emit(c)
-        c.JUMP_ABSOLUTE() # JUMPS TO FOR_ITER
+        c.JUMP_ABSOLUTE(loop_start) # JUMPS TO FOR_ITER
+        print "JUMP_ABSOLUTE", loop_start
+        loop_end()
         c.POP_BLOCK() # MARKS END OF LOOP BODY
+        print "POP_BLOCK"
+
+class TokWhile(TokStatement):
+    def stmtd(self):
+        advance(TokWhile)
+        if isinstance(token, TokLParen):
+            advance(TokLParen)
+            self.while_cond = expression(0)
+            advance(TOkRParen)
+        else:
+            self.while_cond = expression(0)
+        advance(TokDo)
+        advance(TokLCBrace)
+        self.block = block()
+        advance(TokRCBrace)
+        return self
+    def eval(self):
+        pass
+    def emit(self, c):
+        c.SETUP_LOOP()
+        self.while_cond.emit(c)
+        fwd = c.JUMP_IF_FALSE()
+        self.block.emit(c)
+
+        fwd()
+        c.POP_BLOCK()
 
 class TokItemIn(TokStatement):
     def stmtd(self):
         return self
     def eval(self):
+        pass
+    def emit(self, c):
         pass
 
 class TokLog(TokStatement):
@@ -925,9 +958,13 @@ class TokLog(TokStatement):
 
     def emit(self, c):
         print "OHAAAAAAAAAY", self.first
-        self.first.emit(c)
+        # self.first.emit(c)
+        c.LOAD_CONST("hello")
+        print "LOAD_CONST('hello')"
         c.PRINT_ITEM()
+        print "PRINT_ITEM"
         c.PRINT_NEWLINE()
+        print "PRINT_NEWLINE"
 
 # symbol("if", 20) 
 # ternary form
@@ -1666,6 +1703,7 @@ def generate_bytecode():
     c.RETURN_VALUE()
     # dis(c.code())
     # eval(c.code())
+    print list(c)
     return c.code()
 
 
@@ -1714,6 +1752,6 @@ if __name__ == "__main__":
     print "\n\nNow that we've evaluated, let's compile: \n"
     # run_tests()
     code_obj = generate_bytecode()
-    # dis(code_obj)
+    dis(code_obj)
     eval(code_obj)
     # write_pyc(prefix, code_obj)
