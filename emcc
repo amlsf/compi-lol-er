@@ -26,10 +26,6 @@ scope = None
 current_fun_return = False
 # function names mapped to their code objects
 fun_defs = {}
-# c = Code()
-
-# script, input_file = argv
-# input_script = open(input_file).read()
 
 
 ################################################################################
@@ -118,16 +114,9 @@ class TokTemplate(object):
 
     def __repr__(self):
         return "(Type: %s; Value: '%s'; Position: %s)" % (self.type, self.value, self.pos)
-        # if self.id == "(name)" or self.id == "(literal)":
-        #     return "(%s %s)" % (self.id[1:-1], self.value)
-        # out = [self.id, self.left_side, self.right_side, self.third]
-        # out = map(str, filter(None, out))
-        # return "(" + " ".join(out) + ")" # you know everything will be displayed in parentheses
-
 
 
 ##### CLASSES FOR BASIC STATEMENT TOKENS #####
-
 
 class TokStatement(TokTemplate):
     def __init__(self, type, value, pos):
@@ -140,7 +129,6 @@ class TokType(TokStatement):
         self.type = type
         self.value = value
         self.pos = pos    
-
 
 
 ##### CLASSES FOR END-Y TOKENS #####
@@ -198,12 +186,12 @@ class TokId(TokTemplate):
         return symbol_table[self.value]
     
     def emit(self, c):
-        # TODO: Fix: context specific actions for id's. 
         # - When being assigned (in tok var or tok assign), this will be a store_fast
             # --> therefore, this should be load_const and 
         # - All other times, this should be a load_const because whatever the id is pointing to should be used in an expression instead
+        # TODO: this needs to grab a temporary iterator's ID/value if it's in a loop...so...how does one do that ONLY in that instance?
         print "load const of whatever's mapped to", self.value, ":", symbol_table[self.value]
-        c.LOAD_FAST(self.value)
+        c.LOAD_CONST(self.value)
 
 class TokString(TokTemplate):
     def nulld(self):
@@ -229,7 +217,7 @@ class TokTrue(TokTemplate):
     def eval(self):
         return True
     def emit(self, c):
-        c.LOAD_GLOBAL(True)
+        c.LOAD_CONST(True)
 
 class TokFalse(TokTemplate):
     def nulld(self):
@@ -237,7 +225,7 @@ class TokFalse(TokTemplate):
     def eval(self):
         return False
     def emit(self, c):
-        c.LOAD_GLOBAL(False)
+        c.LOAD_CONST(False)
 
 class TokEmpty(TokTemplate):
     def nulld(self):
@@ -245,37 +233,8 @@ class TokEmpty(TokTemplate):
     def eval(self):
         return None
     def emit(self, c):
-        c.LOAD_GLOBAL(None)
+        c.LOAD_CONST(None)
 
-class TokList(TokTemplate):
-    # list = [1]
-    def nulld(self):
-        return self
-    # list[1]
-    def leftd(self):
-        # get the name out of dictionary
-        # what form is this? is self.value able to be used as a normal list?
-        return self
-    def eval(self):
-        return self.value
-    def emit(self, c):
-        c.LOAD_CONST(self.value)
-
-class TokMap(TokTemplate):
-    def nulld(self):
-        return self
-    def eval(self):
-        return self.value
-    def emit(self, c):
-        c.LOAD_CONST(self.value)
-
-class TokClass(TokTemplate):
-    def nulld(self):
-        return self
-    def eval(self):
-        return self.value
-    def emit(self, c):
-        c.LOAD_CONST(self.value)
 
 ##### CLASSES FOR EXPRESSION TOKENS #####
 
@@ -316,6 +275,13 @@ class TokAnd(TokTemplate):
         else:
             print "Either %s or %s is false so returning False" % (self.first, self.second)
             return False
+    def emit(self, c):
+        pass
+        # self.first.emit(c)
+        # c.POP_JUMP_IF_FALSE() #jump
+        # load first
+        # jump if false
+
 
 # followed by "in", "not in"
 # infix_r("not", 50)
@@ -330,27 +296,29 @@ class TokNot(TokTemplate):
             return True
         else:
             return False
-
+    def emit(self, c):
+        pass
 
 # infix("in", 60)
 class TokInNotIn(TokTemplate):
     lbp = 60
     def leftd(self, left):
-        if token.id != "in":
+        if token.value != "in":
             raise SyntaxError("Invalid syntax")
         advance()
-        self.id = "not in"
+        self.value = "not in"
         self.first = left
         self.second = expression(60)
         return self
         lbp = 60
-
+    def emit(self, c):
+        pass
 
 # infix("not", 60) # in, not in
 class TokNotNotIn(TokTemplate):
     lbp = 60    
     def leftd(self, left):
-        if token.id != "in":
+        if token.id != "not":
             raise SyntaxError("Invalid syntax")
         advance()
         self.id = "not in"
@@ -720,7 +688,7 @@ class TokFunction(TokStatement):
     def stmtd(self):
         advance(TokFunction)
         advance(TokLParen)
-        # TODO: make function that loop sto get all the arguments out for every token that requires it
+        # TODO: make function that loops to get all the arguments out for every token that requires it
         count = 0
         if not isinstance(token, TokRParen):
             self.args = {}
@@ -797,121 +765,145 @@ class TokCall(TokStatement):
         advance(TokItemIn)
         # Different types of forms: #listA #someString #bounds(10)=list0-9 
         # #bounds(3:6)=list3-6 #bounds(3:6!2)=list[3,5] #bounds(10!-1)=list0-9backwards            
+        iter_list = []
         if isinstance(token, TokId):
             # save that identifier to iterate through later, evaluation of which is different based on type of variable
-            self.iterScope = token.value
+            self.iter_scope = token.value
             print "set iterscope to ", token.value
         else: 
             # create an identifier to iterate through later, based on bounds
             advance(TokBounds)
             advance(TokLParen)
-            # first number is 
-            if isinstance(token, TokId):
-                # TODO: must set up system to fill anything within a function that uses/could use an argument with some PLACEHOLDER until the function is actually called--should placeholder just be variable's name?
-                firstNum = token.value
-            else:
-                # this is an else for when I change these to be open for variables and equations and therefore need to call expression to fill firstNum
-                firstNum = token.value
-                # firstNum = expression(0)
-            advance()
+            # TODO: must set up system to fill anything within a function that uses/could use an argument with some PLACEHOLDER until the function is actually called--should placeholder just be variable's name?
+            first_num = expression(0)
             # if there's a colon following, then the first number was the self.fromNum, otherwise that number represents the range that the user wants to loop until, non-inclusively (so if bounds(10), it would iterate through a list of 10 items, 0 through 9)
             if isinstance(token, TokColon):
-                self.fromNum = firstNum
+                self.from_num = first_num
                 advance(TokColon)
-                if isinstance(token, TokId):
-                    self.toNum = token.value
-                else:
-                    self.toNum = token.value
-                    # self.toNum = expression(0)
+                # if isinstance(token, TokId):
+                #     self.to_num = token
+                # else:
+                #     self.to_num = token
+                self.to_num = expression(0)
             else:
-                self.range = firstNum
-            advance() # either number or id, must be careful when opening up to expressions as that will shift which token is "landed on" prior to continuing method
+                self.range = first_num
             # if there's a '!' token then the list will be manipulated in terms of direction and/or frequency before being iterated through
             if isinstance(token, TokBang):
                 advance(TokBang)
-                potentialFreq = expression(0)
+                potential_freq = expression(0)
                 # 1 is default direc/freq, so ignore it
-                if potentialFreq != 1:
-                    self.frequency = potentialFreq
+                if potential_freq != 1:
+                    self.frequency = potential_freq
             advance(TokRParen)
             advance(TokLCBrace)
             self.block = block()
             advance(TokRCBrace)
-            return self
+
+        return self
 
     def eval(self):
-        # DOING THIS WITHOUT PYTHON LIST MANIPULATION for better visualization of translating it into bytecode based on what's really happening
-        # self.tempvar is what will be increasing after every iteration
-        # self.range is if just 1 number exists, create complete list
-        # global 
-        iterList = []
-        if hasattr(self, 'range'):
-            x = 0
-            while x < self.range:
-                iterList.append(x)
-                x += 1
-        if hasattr(self, 'fromNum'):
-            x = self.fromNum
-            while x < self.toNum:
-                iterList.append(x)
-                x += 1
-        if hasattr(self, 'frequency'):
-            if self.frequency < 0:
-                # reverse list
-                pass
-            if self.frequency > 1 or self.frequence <-1:
-                # take out every _ one
-                pass
-        print "LIST FOR ITERATIONNNNNNNNNNNNNNNN", iterList
-        self.list = iterList
-        for x in iterList:
-            # changes value in the symbol table so that wherever it's used, it will have the correct value
-            symbol_table[self.tempvar] = x
-            self.block.eval()
-        # after the loop is done, variable is removed from symbol_table so the name can be used again
-        del symbol_table[self.tempvar]
+        pass
+        # # DOING THIS WITHOUT PYTHON LIST MANIPULATION for better visualization of translating it into bytecode based on what's really happening
+        # # self.tempvar is what will be increasing after every iteration
+        # # self.range is if just 1 number exists, create complete list
+        # # global 
+        # iter_list = []
+        # if hasattr(self, 'range'):
+        #     x = 0
+        #     # TODO: write function to distinguish between if value is 
+        #     self.range = get_value(self.range)
+        #     print self.range, "raaaaaaaaaaange"
+        #     while x < self.range(c):
+        #         iter_list.append(x)
+        #         x += 1
+        #         print x
+        # if hasattr(self, 'from_num'):
+        #     x = self.from_num
+        #     if isinstance(x, TokId):
+        #         x = symbol_table[x]
+        #     elif isinstance(x, TokNumb):
+        #         x = x.value
+        #     print "WHAT ISSSSSSSSSSSSSSS x", x
+        #     print "runs untillllllll", self.to_num
+        #     while x < self.to_num.emit(c):
+        #         iter_list.append(x)
+        #         x += 1
+        #         print iter_list, "LIIIIIIIST"
+        # if hasattr(self, 'frequency'):
+        #     if self.frequency.emit(c) < 0:
+        #         # reverse list
+        #         pass
+        #     if self.frequency.emit(c) > 1 or self.frequence <-1:
+        #         # take out every _ one
+        #         pass
+        # self.list = iter_list
+        # # print "LIST FOR ITERATIONNNNNNNNNNNNNNNN", iterList
+        # self.list = iterList
+        # for x in iterList:
+        #     # changes value in the symbol table so that wherever it's used, it will have the correct value
+        #     symbol_table[self.tempvar] = x
+        #     self.block.eval()
+        # # after the loop is done, variable is removed from symbol_table so the name can be used again
+        # del symbol_table[self.tempvar]
+
 
     def emit(self, c):
-        iterList = []
-        if hasattr(self, 'range'):
-            x = 0
-            print self.range
-            while x < self.range:
-                iterList.append(x)
-                x += 1
-        if hasattr(self, 'fromNum'):
-            x = self.fromNum
-            print self.toNum
-            while x < self.toNum:
-                iterList.append(x)
-                x += 1
+        c.SETUP_LOOP() # TODO: what args?
+        # TODO: manipulate lists before sending into be put into the loop, this will be an if, else, because the process of loading the results into code gen will be different for manipulated ones (load each item as const, then build list, then get iter)
         if hasattr(self, 'frequency'):
-            if self.frequency < 0:
+            if self.frequency.value < 0:
                 # reverse list
-                pass
-            if self.frequency > 1 or self.frequence <-1:
+                print "freq. manip. to be added later"
+            if self.frequency.value > 1 or self.frequency.value <-1:
                 # take out every _ one
-                pass
-        print "LIST FOR ITERATIONNNNNNNNNNNNNNNN", iterList
-        self.list = iterList
-        for x in iterList:
-            # changes value in the symbol table so that wherever it's used, it will have the correct value
-            symbol_table[self.tempvar] = x
-            self.block.eval()
-        # after the loop is done, variable is removed from symbol_table so the name can be used again
-        del symbol_table[self.tempvar]
+                print "freq. manip. to be added later"
+            # self.list = iter_list
+            # for x in self.list:
+            #     # changes value in the symbol table so that wherever it's used, it will have the correct value
+            #     symbol_table[self.tempvar] = x
+            #     self.block.emit(c)
+            # after the loop is done, variable is removed from symbol_table so the name can be used again
+            # del symbol_table[self.tempvar]
 
-        c.SETUP_LOOP()
-        for listItem in self.list:
-            c.LOAD_CONST(listItem)
-        c.BUILD_LIST(len(self.list))
-        c.STORE_FAST()
-        c.LOAD_FAST()
-        c.GET_ITER
-        c.FOR_ITER
+            # for list_item in self.list: # used IF not "bounds" but the ID of some list
+            #     c.LOAD_CONST(list_item)
+                # c.BUILD_LIST(len(self.list))
+                # c.STORE_FAST()
+                # c.LOAD_FAST()
+        # if not manipulating list first, it's much easier
+        if hasattr(self, 'range'):
+            print self.range, "raaaaaaaaaaange"
+            c.LOAD_GLOBAL(xrange)
+            print "LOAD_GLOBAL(xrange)"
+            c.LOAD_CONST(self.range.value)
+            print "LOAD_CONST(%s)" % self.range.value
+            c.CALL_FUNCTION(1, 0)
+            print "CALL_FUNCTION(1 arg[range], 0 key args)"
+
+        elif hasattr(self, 'from_num'):
+            self.from_num = get_value(self.from_num)
+            self.to_num = get_value(self.to_num)
+            c.LOAD_GLOBAL(xrange)
+            print "LOAD_GLOBAL(xrange)"
+            c.LOAD_CONST(self.from_num.value)
+            print "LOAD_CONST(%s)" % self.from_num.value
+            c.LOAD_CONST(self.to_num.value)
+            print "LOAD_CONST(%s)" % self.to_num.value
+            # creates the appropriate list 
+            c.CALL_FUNCTION(2, 0)
+            print "CALL_FUNCTION(2 args[start, stop-exclusive], 0 key args)"
+
+        c.GET_ITER()
+        print "GET_ITER(the list created/loaded)"
+        # that forward stuff goes here probably
+        c.FOR_ITER()
+        print "FOR_ITER(sets line to jump back to after every runthrough of the body)"
+        # TODO: how does one get the correct variable name? do you pass it in with 'c' when emitting?
+        c.STORE_FAST(self.tempvar)
+        print "STORE_FAST(temp var name:", self.tempvar
         self.block.emit(c)
-        c.JUMP_ABSOLUTE
-        c.POP_BLOCK
+        c.JUMP_ABSOLUTE() # JUMPS TO FOR_ITER
+        c.POP_BLOCK() # MARKS END OF LOOP BODY
 
 class TokItemIn(TokStatement):
     def stmtd(self):
@@ -1092,9 +1084,9 @@ class TokVar(TokStatement):
         global symbol_list
         # add ID to symbol list so you can use it during assignment
         symbol_list.append(self.newvar)
-        print "added %s to the symbol_list" % self.newvar
+        print "added '%s' to the symbol_list" % self.newvar
         symbol_table[self.newvar] = self.setvalue.eval()
-        print "added %s as key to the value of %s" % (self.newvar, self.setvalue.eval())
+        print "added '%s' as key to the value of '%s'" % (self.newvar, self.setvalue.eval())
     
     def emit(self, c):
         symbol_table[self.newvar] = self.setvalue.eval()
@@ -1424,6 +1416,16 @@ def t_ID(t):
     t = TokId(t.type, t.value, t.lexpos)
     return t
 
+def get_value(mystery):
+    print "SOOOOOLVING THE MYSTERIES OF WHAT KIND OF THING IS THIS"
+    if isinstance(mystery, TokId):
+        mystery_solved = symbol_table[mystery]
+    elif isinstance(x, TokNumb):
+        mystery_solved = mystery.value
+    else:
+        "WTF IS THIS AND WHY IS IT HEEEEEERE", x
+    return mystery_solved
+
 def argument_list(list):
     while True:
         if token.type != "ID":
@@ -1439,16 +1441,6 @@ def argument_list(list):
             break
         advance(",")
 
-def constant(id):
-    @method(symbol(id))
-    def nulld(self):
-        self.id = "(literal)"
-        self.value = id
-        return self
-
-    constant("None")
-    constant("True")
-    constant("False")
 
 def type_data():
     if isinstance(token, TokLBrack):
@@ -1718,11 +1710,10 @@ if __name__ == "__main__":
     program = parse()
     print "\n\nHOLY GRAVY, IT PARSED. Run (evaluate) it:\n"
     program.eval()
-    print "\n\nThat took %s milliseconds." % 'undisclosed'
+    # print "\n\nThat took %s milliseconds." % 'undisclosed'
     print "\n\nNow that we've evaluated, let's compile: \n"
     # run_tests()
     code_obj = generate_bytecode()
+    # dis(code_obj)
     eval(code_obj)
-    # dis(c)
-    # compile(c)
-    write_pyc(prefix, code_obj)
+    # write_pyc(prefix, code_obj)
