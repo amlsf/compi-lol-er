@@ -23,7 +23,7 @@ token = None
 scope = None
 
 # vars for compiling
-current_fun_return = False
+current_fun_return = None
 # function names mapped to their code objects
 fun_defs = {}
 
@@ -37,7 +37,7 @@ fun_defs = {}
 # declaring token names for ply lexer to use, including reserved keywords
 tokens = [
     'EMCSQ', 'SLCOMMENT', 'SEMICOLON', 'GLOBAL', 'STRING', 'LPAREN', 'RPAREN', 'LBRACK', 'RBRACK', 'LCBRACE', 'RCBRACE', 'DOT', 'COMMA', 'COLON', 'ARROWED', 'ASSIGN', 'PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'POWER', 'MODULO', 'LESS', 'GREATER', 'LESSEQ', 'GREATEQ', 'ISEQ', 'NOTEQ', 'ID','NUMBER',
-    'USE', 'FUN', 'RETURN', 'CALL', 'ITEMIN', 'LOG', 'IF', 'ELIF', 'ELSE', 'OR', 'ORIF', 'AND', 'NOT', 'TYNONE', 'TYINT', 'TYSTRING', 'TYLIST', 'TYBOOL', 'TYMAP', 'TRUE', 'FALSE', 'EMPTY', 'BOUNDS', 'VAR', 'PIPE', 'USERINPUT', 'BANG', 'SEND', 'LIST', 'MAP'
+    'USE', 'FUN', 'RETURN', 'CALL', 'ITEMIN', 'LOG', 'IF', 'ELIF', 'ELSE', 'OR', 'ORIF', 'AND', 'NOT', 'TYNONE', 'TYINT', 'TYSTRING', 'TYLIST', 'TYBOOL', 'TYMAP', 'TRUE', 'FALSE', 'EMPTY', 'BOUNDS', 'VAR', 'PIPE', 'USERINPUT', 'BANG', 'SEND', 'LIST', 'MAP', 'WHILE', 'DO', 'CONTINUE', 'BREAK'
     ] #+ list(reserved.values())
 
 
@@ -191,7 +191,7 @@ class TokId(TokTemplate):
         # - All other times, this should be a load_const because whatever the id is pointing to should be used in an expression instead
         # TODO: this needs to grab a temporary iterator's ID/value if it's in a loop...so...how does one do that ONLY in that instance?
         print "load const of whatever's mapped to", self.value, ":", symbol_table[self.value]
-        c.LOAD_CONST(self.value)
+        c.LOAD_FAST(self.value)
 
 class TokString(TokTemplate):
     def nulld(self):
@@ -675,13 +675,18 @@ class TokUse(TokStatement):
 
     def emit(self, c):
         c.LOAD_CONST(-1)
+        print "LOAD_CONST(-1)"
         c.LOAD_CONST(self.second)
+        print "LOAD_CONST(what you're importing)"
         c.IMPORT_NAME(self.first)
+        print "IMPORT_NAME(from which library)"
         if len(self.second) > 1:
             c.IMPORT_FROM(self.second)
             c.STORE_FAST(self.second)
         c.STORE_FAST(self.first)
+        print "STORE_FAST(library name)"
         c.POP_TOP
+        print "POP_TOP"
 
 
 class TokFunction(TokStatement):
@@ -722,20 +727,26 @@ class TokFunction(TokStatement):
         funObj.co_name will say module even though it could be function or class
         '''
         new_block = Code()
-        print "FUNNNNNNNNNNNNNNNNNN", new_block.co_filename
+        print "Made a code object for this function:", new_block.co_filename
         new_block.co_argcount = len(self.args)
         self.block.emit(new_block)
         
-        # if nothing was returned, return silently
+        print "((nothing was returned in code obj, so add silent return to it))"
         if current_fun_return == False:
             new_block.LOAD_CONST(None)
+            print "LOAD_CONST(None)"
             new_block.RETURN_VALUE()
+            print "RETURN_VALUE"
         print self.args
         c.LOAD_CONST(new_block.code())
+        print "LOAD_CONST(code obj)"
         c.MAKE_FUNCTION(0)
+        print "MAKE_FUNCTION"
         fun_defs[self.fun_name] = new_block
+        print "((mapping function name to code obj))"
         c.STORE_FAST(self.fun_name)
-        dis(new_block.code())
+        print "STORE_FAST(function obj)"
+        # dis(new_block.code())
         
 class TokReturn(TokStatement):
     def stmtd(self):
@@ -753,7 +764,9 @@ class TokReturn(TokStatement):
         global current_fun_return
         self.first.emit(c)
         c.RETURN_VALUE()
-        current_fun_return = True
+        print "RETURN_VALUE"
+        if current_fun_return:
+            current_fun_return = True
 
 # EMC[]'s for loop
 class TokCall(TokStatement):
@@ -780,10 +793,6 @@ class TokCall(TokStatement):
             if isinstance(token, TokColon):
                 self.from_num = first_num
                 advance(TokColon)
-                # if isinstance(token, TokId):
-                #     self.to_num = token
-                # else:
-                #     self.to_num = token
                 self.to_num = expression(0)
             else:
                 self.range = first_num
@@ -848,7 +857,7 @@ class TokCall(TokStatement):
 
 
     def emit(self, c):
-        c.SETUP_LOOP() # TODO: what args?
+        c.SETUP_LOOP()
         # TODO: manipulate lists before sending into be put into the loop, this will be an if, else, because the process of loading the results into code gen will be different for manipulated ones (load each item as const, then build list, then get iter)
         if hasattr(self, 'frequency'):
             if self.frequency.value < 0:
@@ -881,20 +890,16 @@ class TokCall(TokStatement):
             print "CALL_FUNCTION(1 arg[range], 0 key args)"
 
         elif hasattr(self, 'from_num'):
-            self.from_num = get_value(self.from_num)
-            self.to_num = get_value(self.to_num)
             c.LOAD_GLOBAL('xrange')
             print "LOAD_GLOBAL(xrange)"
             c.LOAD_CONST(self.from_num.value)
             print "LOAD_CONST(%s)" % self.from_num.value
             c.LOAD_CONST(self.to_num.value)
             print "LOAD_CONST(%s)" % self.to_num.value
-            # creates the appropriate list 
             c.CALL_FUNCTION(2, 0)
             print "CALL_FUNCTION(2 args[start, stop-exclusive], 0 key args)"
         c.GET_ITER()
         print "GET_ITER(the list created/loaded)"
-        # that forward stuff goes here probably
         loop_start = c.here()
         print "LOOP START =", loop_start
         loop_end = c.FOR_ITER()
@@ -925,16 +930,35 @@ class TokWhile(TokStatement):
         self.block = block()
         advance(TokRCBrace)
         return self
+    
     def eval(self):
         pass
+    
     def emit(self, c):
         c.SETUP_LOOP()
         self.while_cond.emit(c)
         fwd = c.JUMP_IF_FALSE()
+
+        c.GET_ITER()
+        print "GET_ITER(the list created/loaded)"
+        loop_start = c.here()
+        print "LOOP START =", loop_start
+        loop_end = c.FOR_ITER()
+        print "FOR_ITER(sets line to jump back to after every runthrough of the body)"
+        # TODO: how does one get the correct variable name? do you pass it in with 'c' when emitting?
+        c.STORE_FAST(self.tempvar)
+        print "STORE_FAST(temp var name:", self.tempvar,")"
+        # c.LOAD_FAST(self.tempvar)
+        # print "LOAD_FAST", self.tempvar
         self.block.emit(c)
+        c.JUMP_ABSOLUTE(loop_start) # JUMPS TO FOR_ITER
+        print "JUMP_ABSOLUTE", loop_start
+        loop_end()
 
         fwd()
         c.POP_BLOCK()
+        print "POP_BLOCK"
+
 
 class TokItemIn(TokStatement):
     def stmtd(self):
@@ -958,9 +982,7 @@ class TokLog(TokStatement):
 
     def emit(self, c):
         print "OHAAAAAAAAAY", self.first
-        # self.first.emit(c)
-        c.LOAD_CONST("hello")
-        print "LOAD_CONST('hello')"
+        self.first.emit(c)
         c.PRINT_ITEM()
         print "PRINT_ITEM"
         c.PRINT_NEWLINE()
@@ -1060,6 +1082,7 @@ class TokBounds(TokStatement):
     def eval(self):
         pass
 
+# EMC[]'s function call
 class TokSend(TokStatement):
     def stmtd(self):
         advance(TokSend)
@@ -1187,6 +1210,11 @@ class TokTypeMap(TokType):
 
 # METHODS FOR EXPRESSION TOKENS
 
+def t_PIPE(t):
+    r'\|'
+    t = TokPipe(t.type, t.value, t.lexpos)
+    return t
+
 def t_NUMBER(t):
     r'-?((\d+(\.\d+)?)|(\.\d+))' # should include neg/pos either '[nums]' or '[nums].[nums]' or '.[nums]''
     try:
@@ -1203,6 +1231,8 @@ def t_STRING(t):
     sansquotes = t.value[1:-1]
     t = TokString(t.type, sansquotes, t.lexpos)
     return t
+
+
 
 def t_TRUE(t):
     r'true'
@@ -1440,10 +1470,25 @@ def t_VAR(t):
     t = TokVar(t.type, t.value, t.lexpos)
     return t
 
-def t_PIPE(t):
-    r'\|'
-    t = TokPipe(t.type, t.value, t.lexpos)
-    return t
+def t_WHILE(t):
+    r'while'
+    t = TokWhile(t.type, t.value, t.lexpos)
+    return
+
+def t_DO(t):
+    r'do'
+    t = TokDo(t.type, t.value, t.lexpos)
+    return
+
+# def t_CONTINUE(t):
+#     r'continue'
+#     t = TokContinue(t.type, t.value, t.lexpos)
+#     return
+
+# def t_BREAK(t):
+#     r'break'
+#     t = TokBreak(t.type, t.value, t.lexpos)
+#     return
 
 ##### ID DEF MUST COME LAST SO RESERVED WORDS CAUGHT FIRST #####
 
