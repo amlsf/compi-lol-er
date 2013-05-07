@@ -3,7 +3,7 @@
 
 import sys
 import ply.lex as lex
-from peak.util.assembler import Code
+from peak.util.assembler import Code, Label
 from dis import dis
 from timeit import Timer
 import marshal, struct, time, types
@@ -23,7 +23,6 @@ token = None
 scope = None
 
 # vars for compiling
-current_fun_return = None
 # function names mapped to their code objects
 fun_defs = {}
 
@@ -190,8 +189,9 @@ class TokId(TokTemplate):
             # --> therefore, this should be load_const and 
         # - All other times, this should be a load_const because whatever the id is pointing to should be used in an expression instead
         # TODO: this needs to grab a temporary iterator's ID/value if it's in a loop...so...how does one do that ONLY in that instance?
-        print "load const of whatever's mapped to", self.value, ":", symbol_table[self.value]
+        print "\tget whatever's mapped to", self.value, ":", symbol_table[self.value]
         c.LOAD_FAST(self.value)
+        print "LOAD_FAST(%s)" % self.value
 
 class TokString(TokTemplate):
     def nulld(self):
@@ -200,6 +200,7 @@ class TokString(TokTemplate):
         return self.value
     def emit(self, c):
         c.LOAD_CONST(self.value)
+        print "LOAD_CONST('%s')" % self.value
 
 class TokNumb(TokTemplate):
     lbp = 10
@@ -208,24 +209,28 @@ class TokNumb(TokTemplate):
     def eval(self):
         return self.value
     def emit(self, c):
-        print "load const:", self.value
         c.LOAD_CONST(self.value)
+        print "LOAD_CONST(%s)" % self.value
 
 class TokTrue(TokTemplate):
+    lbp = 0
     def nulld(self):
         return self 
     def eval(self):
         return True
     def emit(self, c):
         c.LOAD_CONST(True)
+        print "LOAD_CONST(True)"
 
 class TokFalse(TokTemplate):
+    lbp = 0
     def nulld(self):
         return self 
     def eval(self):
         return False
     def emit(self, c):
         c.LOAD_CONST(False)
+        print "LOAD_CONST(False)"
 
 class TokEmpty(TokTemplate):
     def nulld(self):
@@ -234,6 +239,7 @@ class TokEmpty(TokTemplate):
         return None
     def emit(self, c):
         c.LOAD_CONST(None)
+        print "LOAD_CONST(None)"
 
 
 ##### CLASSES FOR EXPRESSION TOKENS #####
@@ -307,8 +313,8 @@ class TokInNotIn(TokTemplate):
             raise SyntaxError("Invalid syntax")
         advance()
         self.value = "not in"
-        self.first = left
-        self.second = expression(60)
+        self.left = left
+        self.right = expression(60)
         return self
         lbp = 60
     def emit(self, c):
@@ -322,88 +328,122 @@ class TokNotNotIn(TokTemplate):
             raise SyntaxError("Invalid syntax")
         advance()
         self.id = "not in"
-        self.first = left
-        self.second = expression(60)
+        self.left = left
+        self.right = expression(60)
         return self
         lbp = 60
+    def emit(self, c):
+        pass
+        print "WRITE THIS, EMILY."
 
 # infix("<", 60);
 class TokLessThan(TokTemplate):
     lbp = 60
     def leftd(self, left):
-        self.first = left
-        self.second = expression(60)
+        self.left = left
+        self.right = expression(60)
         return self
     def eval(self):
-        if self.first.eval() < self.second.eval():
+        if self.left.eval() < self.right.eval():
             return True
         else:
             return False
+    def emit(self, c):
+        self.left.emit(c)
+        self.right.emit(c)
+        c.COMPARE_OP('<')
+        print "COMPARE_OP(<)"
 
 # infix("<=", 60)
 class TokLessOrEq(TokTemplate):
     lbp = 60
     def leftd(self, left):
-        self.first = left
-        self.second = expression(60)
+        self.left = left
+        self.right = expression(60)
         return self 
     def eval(self):
-        if self.first.eval() <= self.second.eval():
+        if self.left.eval() <= self.right.eval():
             return True
         else:
             return False
+    def emit(self, c):
+        self.left.emit(c)
+        self.right.emit(c)
+        c.COMPARE_OP('<=')
+        print "COMPARE_OP(<=)"
 
 # infix(">", 60) 
 class TokGreaterThan(TokTemplate):
     lbp = 60
     def leftd(self, left):
-        self.first = left
-        self.second = expression(60)
+        self.left = left
+        self.right = expression(60)
         return self 
     def eval(self):
-        if self.first.eval() >= self.second.eval():
+        if self.left.eval() >= self.right.eval():
             return True
         else:
             return False
+    def emit(self, c):
+        self.left.emit(c)
+        self.right.emit(c)
+        c.COMPARE_OP('>')
+        print "COMPARE_OP(>)"
 
 # infix(">=", 60)
 class TokGreaterOrEq(TokTemplate):
     lbp = 60
     def leftd(self, left):
-        self.first = left
-        self.second = expression(60)
+        self.left = left
+        self.right = expression(60)
         return self 
     def eval(self):
-        if self.first.eval() >= self.second.eval():
+        if self.left.eval() >= self.right.eval():
             return True
         else:
             return False
+    def emit(self, c):
+        self.left.emit(c)
+        self.right.emit(c)
+        c.COMPARE_OP('>=')
+        print "COMPARE_OP(>=)"
 
 # infix("!=", 60); 
 class TokNotEq(TokTemplate):
     lbp = 60
     def leftd(self, left):
-        self.first = left
-        self.second = expression(60)
+        self.left = left
+        self.right = expression(60)
         return self 
     def eval(self):
-        if self.first.eval() != self.second.eval():
+        if self.left.eval() != self.right.eval():
             return True
         else:
             return False
+    def emit(self, c):
+        self.left.emit(c)
+        self.right.emit(c)
+        c.COMPARE_OP('!=')
+        print "COMPARE_OP(!=)"
 
 # infix("==", 60)
 class TokIsEqual(TokTemplate):
     lbp = 60
     def leftd(self, left):
-        self.first = left
-        self.second = expression(60)
+        self.left = left
+        self.right = expression(60)
         return self 
     def eval(self):
-        if self.first.eval() == self.second.eval():
+        if self.left.eval() == self.right.eval():
             return True
         else:
             return False    
+    def emit(self, c):
+        self.left.emit(c)
+        self.right.emit(c)
+        c.COMPARE_OP('==')
+        print "COMPARE_OP(==)"
+
 
 # infix("+", 110) 
 class TokPlus(TokTemplate):
@@ -696,11 +736,12 @@ class TokFunction(TokStatement):
         # TODO: make function that loops to get all the arguments out for every token that requires it
         count = 0
         if not isinstance(token, TokRParen):
-            self.args = {}
+            self.args = []
         while isinstance(token, TokType):
             advance(TokType)
-            self.args["arg"+str(count)] = token.value
-            print "adding", "arg"+str(count), token.value, "to args dict"
+            self.args.append(token.value)
+            # self.args "arg"+str(count) token.value
+            print "adding", "arg"+str(count), token.value, "to args list"
             count += 1
             advance(TokId)
             if isinstance(token, TokComma):
@@ -727,17 +768,23 @@ class TokFunction(TokStatement):
         funObj.co_name will say module even though it could be function or class
         '''
         new_block = Code()
-        print "Made a code object for this function:", new_block.co_filename
+        new_block.co_varnames = [arg for arg in self.args]
+        new_block.co_filename = self.fun_name
+        print "\tMade a code object for this function:", new_block.co_filename
         new_block.co_argcount = len(self.args)
         self.block.emit(new_block)
         
-        print "((nothing was returned in code obj, so add silent return to it))"
-        if current_fun_return == False:
+        # checks last code generated--if it's RETURN_VALUE(which peak represents with the number 83), then just keep going, but if not, return silently
+        print "FIIIIIIIIIIIIIIIIND MEEEEEEEEEEEEEEE", 
+        if list(new_block)[-1][1] != 83:
+            print "LAST CODE WASN'T RETURNNNNNNNNNNNNNNNN"
+            print "((nothing was returned in code obj, so add silent return to it))"
             new_block.LOAD_CONST(None)
             print "LOAD_CONST(None)"
             new_block.RETURN_VALUE()
             print "RETURN_VALUE"
-        print self.args
+            print self.args
+        print new_block.co_varnames
         c.LOAD_CONST(new_block.code())
         print "LOAD_CONST(code obj)"
         c.MAKE_FUNCTION(0)
@@ -746,27 +793,29 @@ class TokFunction(TokStatement):
         print "((mapping function name to code obj))"
         c.STORE_FAST(self.fun_name)
         print "STORE_FAST(function obj)"
-        # dis(new_block.code())
+        dis(new_block.code())
+
         
 class TokReturn(TokStatement):
     def stmtd(self):
         advance(TokReturn)
         if not isinstance(token, TokSemicolon):
-            self.first = expression(0)
-        else:
-            self.first = None
+            self.return_expr = expression(0)
     def eval(self):
-        if self.first == None:
+        if self.return_expr == None:
             return None
         else:
             return self.first.eval()
     def emit(self, c):
-        global current_fun_return
-        self.first.emit(c)
+        if hasattr(self, 'return_expr'):
+            print "It has a return, really?"
+            self.return_expr.emit(c)
+        else:
+            print "It has no return, really?"
+            c.LOAD_CONST(None)
+            print "LOAD_CONST(None)"
         c.RETURN_VALUE()
         print "RETURN_VALUE"
-        if current_fun_return:
-            current_fun_return = True
 
 # EMC[]'s for loop
 class TokCall(TokStatement):
@@ -862,10 +911,10 @@ class TokCall(TokStatement):
         if hasattr(self, 'frequency'):
             if self.frequency.value < 0:
                 # reverse list
-                print "freq. manip. to be added later"
+                print "\t((freq. manip. to be added later))"
             if self.frequency.value > 1 or self.frequency.value <-1:
                 # take out every _ one
-                print "freq. manip. to be added later"
+                print "\t((freq. manip. to be added later))"
             # self.list = iter_list
             # for x in self.list:
             #     # changes value in the symbol table so that wherever it's used, it will have the correct value
@@ -884,18 +933,15 @@ class TokCall(TokStatement):
             print self.range, "raaaaaaaaaaange"
             c.LOAD_GLOBAL('xrange')
             print "LOAD_GLOBAL(xrange)"
-            c.LOAD_CONST(self.range.value)
-            print "LOAD_CONST(%s)" % self.range.value
+            self.range.emit(c)
             c.CALL_FUNCTION(1, 0)
             print "CALL_FUNCTION(1 arg[range], 0 key args)"
 
         elif hasattr(self, 'from_num'):
             c.LOAD_GLOBAL('xrange')
             print "LOAD_GLOBAL(xrange)"
-            c.LOAD_CONST(self.from_num.value)
-            print "LOAD_CONST(%s)" % self.from_num.value
-            c.LOAD_CONST(self.to_num.value)
-            print "LOAD_CONST(%s)" % self.to_num.value
+            self.from_num.emit(c)
+            self.to_num.emit(c)
             c.CALL_FUNCTION(2, 0)
             print "CALL_FUNCTION(2 args[start, stop-exclusive], 0 key args)"
         c.GET_ITER()
@@ -981,7 +1027,6 @@ class TokLog(TokStatement):
         print self.first.eval()
 
     def emit(self, c):
-        print "OHAAAAAAAAAY", self.first
         self.first.emit(c)
         c.PRINT_ITEM()
         print "PRINT_ITEM"
@@ -1007,7 +1052,6 @@ class TokIf(TokStatement):
         # TODO: cannot yet do infinite elifs with this grammar
         if token.type == "ELSE":
             advance(TokElse)
-            self.elsecond = expression(0)
             advance(TokLCBrace)
             while not isinstance(token, TokRCBrace): 
                 self.elseresult = statement()
@@ -1042,22 +1086,42 @@ class TokIf(TokStatement):
                         print self.elsecond.eval(), "is true, so..."
                         self.elseresult.eval()
     def emit(self, c):
-        '''Disassembled if false print 'yay', if true print 'noooo':
-        0 LOAD_GLOBAL 0(false)
-        3 POP_JUMP_IF_False 14
-        6 LOAD_CONST 1("Yay!")
-        9 PRINT_ITEM ()
-        10 PRINT_NEWLINE
-        11 JUMP_FORWARD 14 (to 28)
-        14 LOAD_GLOBAL 1(true)
-        17 POP_JUMP_IF_FALSE 28
-        20 LOAD_CONST 2 ('nooooo')
-        23 PRINT_ITEM
-        24 PRINT_NEWLINE
-        25 JUMP_FORWARD 0 (to 28)
-        28 LOAD_CONST 0 (None)
-        31 RETURN_VALUE
-        '''
+        self.ifcond.emit(c)
+        if_false_start = c.POP_JUMP_IF_FALSE()
+        print "JUMP_IF_FALSE"
+        
+
+        self.ifresult.emit(c)
+
+        # jump_forward(delta) moves forward delta lines
+        # forward = c.JUMP_FORWARD()
+        after_conditions = Label()
+        c(after_conditions.JUMP_FORWARD)
+        # c.JUMP_FORWARD()
+        print "JUMP_FORWARD[past elifs, elses if true]"
+        if_false_start()
+        print "\t((else false jump lands here))"
+        
+        if hasattr(self, 'elifcond'):
+            self.elifcond.emit(c)
+            elif_false_start = c.POP_JUMP_IF_FALSE()
+            print "JUMP_IF_FALSE"
+        
+            self.elifresult.emit(c)
+            
+            # after_conditions()
+            c(after_conditions.JUMP_FORWARD)
+            # forward = c.JUMP_FORWARD()
+            print "JUMP_FORWARD[past elifs, elses if true]"
+            elif_false_start()
+            print "\t((elif false jump lands here))"
+        
+        if hasattr(self, 'elseresult'):
+            self.elseresult.emit(c)
+        
+        c(after_conditions)
+        # forward()
+        print "\t((if any cond True, jumps here after))"
         # c.LOAD_GLOBAL(self.ifcond.eval())
 
 # symbol("if", 20) 
@@ -1743,12 +1807,14 @@ def next():
 def generate_bytecode():
     c = Code()
     program.emit(c)
-    print "Donesies"
+    print "Donesies with script-specific code gen."
     c.LOAD_CONST(None)
+    print "LOAD_CONST(None)"
     c.RETURN_VALUE()
+    print "RETURN_VALUE"
     # dis(c.code())
     # eval(c.code())
-    print list(c)
+    # print list(c)
     return c.code()
 
 
