@@ -36,7 +36,7 @@ fun_defs = {}
 # declaring token names for ply lexer to use, including reserved keywords
 tokens = [
     'EMCSQ', 'SLCOMMENT', 'SEMICOLON', 'GLOBAL', 'STRING', 'LPAREN', 'RPAREN', 'LBRACK', 'RBRACK', 'LCBRACE', 'RCBRACE', 'DOT', 'COMMA', 'COLON', 'ARROWED', 'ASSIGN', 'PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'POWER', 'MODULO', 'LESS', 'GREATER', 'LESSEQ', 'GREATEQ', 'ISEQ', 'NOTEQ', 'ID','NUMBER',
-    'USE', 'FUN', 'RETURN', 'CALL', 'ITEMIN', 'LOG', 'IF', 'ELIF', 'ELSE', 'OR', 'ORIF', 'AND', 'NOT', 'TYNONE', 'TYINT', 'TYSTRING', 'TYLIST', 'TYBOOL', 'TYMAP', 'TRUE', 'FALSE', 'EMPTY', 'BOUNDS', 'VAR', 'PIPE', 'USERINPUT', 'BANG', 'SEND', 'LIST', 'MAP', 'WHILE', 'DO', 'CONTINUE', 'BREAK'
+    'USE', 'FUN', 'RETURN', 'CALL', 'ITEMIN', 'LOG', 'IF', 'ELIF', 'ELSE', 'OR', 'ORIF', 'AND', 'NOT', 'TYNONE', 'TYINT', 'TYSTRING', 'TYLIST', 'TYBOOL', 'TYMAP', 'TRUE', 'FALSE', 'EMPTY', 'BOUNDS', 'VAR', 'PIPE', 'USERINPUT', 'BANG', 'SEND', 'LIST', 'MAP', 'WHILE', 'DO', 'CONTINUE', 'BREAK', 'NEWLINELOG'
     ] #+ list(reserved.values())
 
 
@@ -82,9 +82,6 @@ def t_error(t):
 
 # TODO: EASTER EGG SHENANIGANS...do I want to allow anything to be written within the brackets? If so, what do I want to happen with that?
 
-# def t_EMCSQ(t):
-#     r'EmC\[\]'
-#     return t
 
 
 ##### CLASS FOR BASIC TOKEN #####
@@ -775,10 +772,9 @@ class TokFunction(TokStatement):
         self.block.emit(new_block)
         
         # checks last code generated--if it's RETURN_VALUE(which peak represents with the number 83), then just keep going, but if not, return silently
-        print "FIIIIIIIIIIIIIIIIND MEEEEEEEEEEEEEEE", 
         if list(new_block)[-1][1] != 83:
             print "LAST CODE WASN'T RETURNNNNNNNNNNNNNNNN"
-            print "((nothing was returned in code obj, so add silent return to it))"
+            print "\t((nothing was returned in code obj, so add silent return to it))"
             new_block.LOAD_CONST(None)
             print "LOAD_CONST(None)"
             new_block.RETURN_VALUE()
@@ -790,7 +786,7 @@ class TokFunction(TokStatement):
         c.MAKE_FUNCTION(0)
         print "MAKE_FUNCTION"
         fun_defs[self.fun_name] = new_block
-        print "((mapping function name to code obj))"
+        print "\t((mapping function name to code obj))"
         c.STORE_FAST(self.fun_name)
         print "STORE_FAST(function obj)"
         dis(new_block.code())
@@ -1033,6 +1029,23 @@ class TokLog(TokStatement):
         c.PRINT_NEWLINE()
         print "PRINT_NEWLINE"
 
+class TokNewlineLog(TokStatement):
+    def stmtd(self):
+        advance(TokLog) # skip past 'log'
+        advance(TokLParen) # skip past l paren
+        self.first = expression(0)
+        advance(TokRParen)
+        advance(TokSemicolon)
+        return self
+
+    def eval(self):
+        print self.first.eval()
+
+    def emit(self, c):
+        self.first.emit(c)
+        c.PRINT_ITEM()
+        print "PRINT_ITEM"
+
 # symbol("if", 20) 
 # ternary form
 class TokIf(TokStatement):
@@ -1200,7 +1213,7 @@ class TokVar(TokStatement):
         advance(TokAssign)
         # if assignment is creating a list
         self.setvalue = type_data()
-        print "WHAT ARE WE SETTING THINGS TOOOOOOOO:", self.setvalue
+        # print "WHAT ARE WE SETTING THINGS TOOOOOOOO:", self.setvalue
         advance(TokSemicolon)
         return self
 
@@ -1214,7 +1227,7 @@ class TokVar(TokStatement):
     
     def emit(self, c):
         symbol_table[self.newvar] = self.setvalue.eval()
-        print "Setting", self.newvar, "to", self.setvalue, " eval:", self.setvalue.eval()
+        print "\tSetting", self.newvar, "to", self.setvalue, " eval:", self.setvalue.eval()
         if isinstance(self.setvalue, types.ListType):
             pass
         elif isinstance(self.setvalue, types.DictType):
@@ -1222,7 +1235,7 @@ class TokVar(TokStatement):
         else:
             self.setvalue.emit(c)
         c.STORE_FAST(self.newvar)
-        print "ASSIIIIIIIIGN: store fast", self.newvar
+        print "STORE_FAST(%s)" % self.newvar
 
 
 class TokUserInput(TokStatement):
@@ -1230,6 +1243,32 @@ class TokUserInput(TokStatement):
         return self
     def eval(self):
         pass
+
+class TokEmC(TokTemplate):
+    lbp = 0
+    def nulld(self):
+        advance(TokEmC)
+        advance(TokLBrack)
+        advance(TokRBrack)
+        advance(TokSemicolon)
+    def eval(self):
+        return True
+    def emit(self, c):
+        c.PRINT_NEWLINE()
+        c.PRINT_NEWLINE()
+        c.PRINT_NEWLINE()
+        c.PRINT_NEWLINE()
+        c.PRINT_NEWLINE()
+        c.LOAD_CONST("EmC[] is a super cool language--y'all might as well call me EmC ProgrHammer. Hope you're enjoying")
+        print "LOAD_CONST('%s')" % self.value
+        c.LOAD_CONST(True)
+        print "LOAD_CONST(True)"
+        c.PRINT_NEWLINE()
+        c.PRINT_NEWLINE()
+        c.PRINT_NEWLINE()
+        c.PRINT_NEWLINE()
+        c.PRINT_NEWLINE()
+
 
 ##### CLASSES FOR TYPE TOKENS #####
 
@@ -1274,10 +1313,7 @@ class TokTypeMap(TokType):
 
 # METHODS FOR EXPRESSION TOKENS
 
-def t_PIPE(t):
-    r'\|'
-    t = TokPipe(t.type, t.value, t.lexpos)
-    return t
+
 
 def t_NUMBER(t):
     r'-?((\d+(\.\d+)?)|(\.\d+))' # should include neg/pos either '[nums]' or '[nums].[nums]' or '.[nums]''
@@ -1296,6 +1332,10 @@ def t_STRING(t):
     t = TokString(t.type, sansquotes, t.lexpos)
     return t
 
+def t_EMCSQ(t):
+    r'EmC'
+    t = TokEmC(t.type, t.value, t.lexpos)
+    return t
 
 
 def t_TRUE(t):
@@ -1316,6 +1356,11 @@ def t_EMPTY(t):
 def t_SEMICOLON(t):
     r';'
     t = TokSemicolon(t.type, t.value, t.lexpos)
+    return t
+
+def t_PIPE(t):
+    r'\|'
+    t = TokPipe(t.type, t.value, t.lexpos)
     return t
 
 def t_GLOBAL(t):
@@ -1482,6 +1527,11 @@ def t_SEND(t):
 
 def t_LOG(t):
     r'log'
+    t = TokLog(t.type, t.value, t.lexpos)
+    return t
+
+def t_LOG(t):
+    r'linelog'
     t = TokLog(t.type, t.value, t.lexpos)
     return t
 
@@ -1865,4 +1915,4 @@ if __name__ == "__main__":
     code_obj = generate_bytecode()
     dis(code_obj)
     eval(code_obj)
-    # write_pyc(prefix, code_obj)
+    write_pyc(prefix, code_obj)
