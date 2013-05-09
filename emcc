@@ -1244,15 +1244,16 @@ class TokUserInput(TokStatement):
     def eval(self):
         pass
 
-class TokEmC(TokTemplate):
+class TokEmC(TokStatement):
     lbp = 0
-    def nulld(self):
+    def stmtd(self):
         advance(TokEmC)
         advance(TokLBrack)
         advance(TokRBrack)
         advance(TokSemicolon)
+        return self
     def eval(self):
-        return True
+        print "EmC[] is a super cool language--y'all might as well call me EmC ProgrHammer. Hope you're enjoying"
     def emit(self, c):
         c.PRINT_NEWLINE()
         c.PRINT_NEWLINE()
@@ -1261,7 +1262,7 @@ class TokEmC(TokTemplate):
         c.PRINT_NEWLINE()
         c.LOAD_CONST("EmC[] is a super cool language--y'all might as well call me EmC ProgrHammer. Hope you're enjoying")
         print "LOAD_CONST('%s')" % self.value
-        c.LOAD_CONST(True)
+        c.PRINT_ITEM()
         print "LOAD_CONST(True)"
         c.PRINT_NEWLINE()
         c.PRINT_NEWLINE()

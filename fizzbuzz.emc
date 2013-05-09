@@ -1,0 +1,13 @@
+fun (int maxNum, string message) -> fizzBuzz -> int { 
+	
+	call num itemin bounds(0:maxNum) {
+		if (num % 3 == 0) { linelog("Fizz"); }
+		if (num % 5 == 0) { linelog("Buzz"); }
+		elif (num % 3 != 0) { linelog(num);	}
+	}
+	linelog(message);
+}
+
+send(100, "YAY WE FIZZ BUZZED!") -> fizzBuzz;
+
+EmC[];
