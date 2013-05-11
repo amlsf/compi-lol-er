@@ -2,11 +2,13 @@
 
 
 import sys
+import marshal
+import struct
+import time
+import types
 import ply.lex as lex
 from peak.util.assembler import Code, Label
 from dis import dis
-from timeit import Timer
-import marshal, struct, time, types
 
 # vars for tokenizing
 output = []
@@ -15,7 +17,7 @@ constants_list = []
 # list_tuples_form = []
 
 # vars for parsing
-symbol_table={}
+symbol_table = {}
 symbol_list = []
 parse_tree = []
 token = None
@@ -35,16 +37,16 @@ fun_defs = {}
 
 # declaring token names for ply lexer to use, including reserved keywords
 tokens = [
-    'EMCSQ', 'SLCOMMENT', 'SEMICOLON', 'GLOBAL', 'STRING', 'LPAREN', 'RPAREN', 'LBRACK', 'RBRACK', 'LCBRACE', 'RCBRACE', 'DOT', 'COMMA', 'COLON', 'ARROWED', 'ASSIGN', 'PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'POWER', 'MODULO', 'LESS', 'GREATER', 'LESSEQ', 'GREATEQ', 'ISEQ', 'NOTEQ', 'ID','NUMBER',
+    'EMCSQ', 'SLCOMMENT', 'SEMICOLON', 'GLOBAL', 'STRING', 'LPAREN', 'RPAREN', 'LBRACK', 'RBRACK', 'LCBRACE', 'RCBRACE', 'DOT', 'COMMA', 'COLON', 'ARROWED', 'ASSIGN', 'PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'POWER', 'MODULO', 'LESS', 'GREATER', 'LESSEQ', 'GREATEQ', 'ISEQ', 'NOTEQ', 'ID', 'NUMBER',
     'USE', 'FUN', 'RETURN', 'CALL', 'ITEMIN', 'LOG', 'IF', 'ELIF', 'ELSE', 'OR', 'ORIF', 'AND', 'NOT', 'TYNONE', 'TYINT', 'TYSTRING', 'TYLIST', 'TYBOOL', 'TYMAP', 'TRUE', 'FALSE', 'EMPTY', 'BOUNDS', 'VAR', 'PIPE', 'USERINPUT', 'BANG', 'SEND', 'LIST', 'MAP', 'WHILE', 'DO', 'CONTINUE', 'BREAK', 'NEWLINELOG'
-    ] #+ list(reserved.values())
+]  # + list(reserved.values())
 
 
 # Ignored characters
-t_ignore = ' \t\v\r' # ignres ALL whitespace (but not newlines, so those can be counted--just tabs, vertical tabs, and carriage returns)
+t_ignore = ' \t\v\r'  # ignres ALL whitespace (but not newlines, so those can be counted--just tabs, vertical tabs, and carriage returns)
 
 states = (
-    ('emcomment','exclusive'),
+    ('emcomment', 'exclusive'),
 )
 
 t_emcomment_ignore = ' \t\v\r'
@@ -53,9 +55,11 @@ t_emcomment_ignore = ' \t\v\r'
 #     r'//[^:][^\n]*'
 #     pass
 
+
 def t_begin_emcomment(token):
     r'//:'
     token.lexer.begin('emcomment')
+
 
 def t_emcomment_end(token):
     r'://'
@@ -64,27 +68,28 @@ def t_emcomment_end(token):
     # goes back to non-comment mode
     token.lexer.begin('INITIAL')
 
+
 def t_emcomment_error(token):
     # skips over EVERYTHING you find until you get to the end of the comment
     # this is similar to pass, but gathers up all the symbols so that you can count the newlines later at the t_emcomment_end part
     token.lexer.skip(1)
+
 
 def t_newline(t):
     r'\n+'
     t.lexer.lineno += len(t.value)
         # += t.value.count("\n")
 
-    
+
 def t_error(t):
     print("Illegal character '%s'" % t.value[0])
     t.lexer.skip(1)
 
 
-# TODO: EASTER EGG SHENANIGANS...do I want to allow anything to be written within the brackets? If so, what do I want to happen with that?
+"""
+CLASS FOR BASIC TOKEN
+"""
 
-
-
-##### CLASS FOR BASIC TOKEN #####
 
 class TokTemplate(object):
     # usually the left side in expressions
@@ -98,6 +103,7 @@ class TokTemplate(object):
         self.type = type
         self.value = value
         self.pos = pos
+
     def nulld(self):
         raise SyntaxError(
             "Syntax error when calling nulld for (%r)." % self.value
@@ -112,7 +118,10 @@ class TokTemplate(object):
         return "(Type: %s; Value: '%s'; Position: %s)" % (self.type, self.value, self.pos)
 
 
-##### CLASSES FOR BASIC STATEMENT TOKENS #####
+"""
+CLASSES FOR BASIC STATEMENT TOKENS
+"""
+
 
 class TokStatement(TokTemplate):
     def __init__(self, type, value, pos):
@@ -120,134 +129,185 @@ class TokStatement(TokTemplate):
         self.value = value
         self.pos = pos
 
+
 class TokType(TokStatement):
     def __init__(self, type, value, pos):
         self.type = type
         self.value = value
-        self.pos = pos    
+        self.pos = pos
 
 
-##### CLASSES FOR END-Y TOKENS #####
+"""
+CLASSES FOR END-Y TOKENS
+"""
+
+
 class TokLast(TokTemplate):
     lbp = 0
+
     def leftd(self):
         pass
+
     def nulld(self):
         pass
+
 
 class TokNewLine(TokTemplate):
     lbp = 0
+
     def leftd(self):
         pass
+
     def nulld(self):
         pass
+
 
 class TokSemicolon(TokTemplate):
     lbp = 0
+
     def leftd(self):
         pass
+
     def nulld(self):
         pass
+
 
 class TokRParen(TokTemplate):
     lbp = 0
+
     def leftd(self):
         pass
+
     def nulld(self):
         pass
+
 
 class TokRBrack(TokTemplate):
     lbp = 0
+
     def leftd(self):
         pass
+
     def nulld(self):
         pass
+
 
 class TokRCBrace(TokTemplate):
     lbp = 0
+
     def leftd(self):
         pass
+
     def nulld(self):
         pass
 
-##### CLASSES FOR CONSTANT TOKENS #####
+
+"""
+CLASSES FOR CONSTANT TOKENS
+"""
+
+
 class TokId(TokTemplate):
     # '''does it need lbp?'''
     lbp = 0
+
     def nulld(self):
         symbol_list.append(self.value)
         return self
-    
+
     def eval(self):
         return symbol_table[self.value]
-    
+
     def emit(self, c):
         # - When being assigned (in tok var or tok assign), this will be a store_fast
-            # --> therefore, this should be load_const and 
+            # --> therefore, this should be load_const and
         # - All other times, this should be a load_const because whatever the id is pointing to should be used in an expression instead
         # TODO: this needs to grab a temporary iterator's ID/value if it's in a loop...so...how does one do that ONLY in that instance?
         print "\tget whatever's mapped to", self.value, ":", symbol_table[self.value]
         c.LOAD_FAST(self.value)
         print "LOAD_FAST(%s)" % self.value
 
+
 class TokString(TokTemplate):
     def nulld(self):
         return self
+
     def eval(self):
         return self.value
+
     def emit(self, c):
         c.LOAD_CONST(self.value)
         print "LOAD_CONST('%s')" % self.value
 
+
 class TokNumb(TokTemplate):
     lbp = 10
+
     def nulld(self):
         return self
+
     def eval(self):
         return self.value
+
     def emit(self, c):
         c.LOAD_CONST(self.value)
         print "LOAD_CONST(%s)" % self.value
 
+
 class TokTrue(TokTemplate):
     lbp = 0
+
     def nulld(self):
-        return self 
+        return self
+
     def eval(self):
         return True
+
     def emit(self, c):
         c.LOAD_CONST(True)
         print "LOAD_CONST(True)"
 
+
 class TokFalse(TokTemplate):
     lbp = 0
+
     def nulld(self):
-        return self 
+        return self
+
     def eval(self):
         return False
+
     def emit(self, c):
         c.LOAD_CONST(False)
         print "LOAD_CONST(False)"
 
+
 class TokEmpty(TokTemplate):
     def nulld(self):
-        return self 
+        return self
+
     def eval(self):
         return None
+
     def emit(self, c):
         c.LOAD_CONST(None)
         print "LOAD_CONST(None)"
 
 
-##### CLASSES FOR EXPRESSION TOKENS #####
+"""
+CLASSES FOR EXPRESSION TOKENS
+"""
+
 
 # infix_r("or", 30)
 class TokOr(TokTemplate):
     lbp = 30
+
     def leftd(self, left):
         self.first = left
         self.second = expression(30)
-        return self 
+        return self
+
     def eval(self):
         if self.first.eval() is True:
             print "%s is true so returning True" % self.first
@@ -267,10 +327,12 @@ class TokOrif(TokTemplate):
 # infix_r("and", 40)
 class TokAnd(TokTemplate):
     lbp = 40
+
     def leftd(self, left):
         self.first = left
         self.second = expression(30)
-        return self 
+        return self
+
     def eval(self):
         if self.first.eval() is True and self.second.eval() is True:
             print "%s and %s are true so returning True" % (self.first, self.second)
@@ -278,6 +340,7 @@ class TokAnd(TokTemplate):
         else:
             print "Either %s or %s is false so returning False" % (self.first, self.second)
             return False
+
     def emit(self, c):
         pass
         # self.first.emit(c)
@@ -290,21 +353,26 @@ class TokAnd(TokTemplate):
 # infix_r("not", 50)
 class TokNot(TokTemplate):
     lbp = 50
+
     def leftd(self, left):
         self.first = left
         self.second = expression(50)
-        return self 
+        return self
+
     def eval(self):
         if self.first.eval() != self.second.eval():
             return True
         else:
             return False
+
     def emit(self, c):
         pass
+
 
 # infix("in", 60)
 class TokInNotIn(TokTemplate):
     lbp = 60
+
     def leftd(self, left):
         if token.value != "in":
             raise SyntaxError("Invalid syntax")
@@ -314,12 +382,15 @@ class TokInNotIn(TokTemplate):
         self.right = expression(60)
         return self
         lbp = 60
+
     def emit(self, c):
         pass
 
+
 # infix("not", 60) # in, not in
 class TokNotNotIn(TokTemplate):
-    lbp = 60    
+    lbp = 60
+
     def leftd(self, left):
         if token.id != "not":
             raise SyntaxError("Invalid syntax")
@@ -329,112 +400,137 @@ class TokNotNotIn(TokTemplate):
         self.right = expression(60)
         return self
         lbp = 60
+
     def emit(self, c):
         pass
         print "WRITE THIS, EMILY."
 
+
 # infix("<", 60);
 class TokLessThan(TokTemplate):
     lbp = 60
+
     def leftd(self, left):
         self.left = left
         self.right = expression(60)
         return self
+
     def eval(self):
         if self.left.eval() < self.right.eval():
             return True
         else:
             return False
+
     def emit(self, c):
         self.left.emit(c)
         self.right.emit(c)
         c.COMPARE_OP('<')
         print "COMPARE_OP(<)"
 
+
 # infix("<=", 60)
 class TokLessOrEq(TokTemplate):
     lbp = 60
+
     def leftd(self, left):
         self.left = left
         self.right = expression(60)
-        return self 
+        return self
+
     def eval(self):
         if self.left.eval() <= self.right.eval():
             return True
         else:
             return False
+
     def emit(self, c):
         self.left.emit(c)
         self.right.emit(c)
         c.COMPARE_OP('<=')
         print "COMPARE_OP(<=)"
 
-# infix(">", 60) 
+
+# infix(">", 60)
 class TokGreaterThan(TokTemplate):
     lbp = 60
+
     def leftd(self, left):
         self.left = left
         self.right = expression(60)
-        return self 
+        return self
+
     def eval(self):
         if self.left.eval() >= self.right.eval():
             return True
         else:
             return False
+
     def emit(self, c):
         self.left.emit(c)
         self.right.emit(c)
         c.COMPARE_OP('>')
         print "COMPARE_OP(>)"
 
+
 # infix(">=", 60)
 class TokGreaterOrEq(TokTemplate):
     lbp = 60
+
     def leftd(self, left):
         self.left = left
         self.right = expression(60)
-        return self 
+        return self
+
     def eval(self):
         if self.left.eval() >= self.right.eval():
             return True
         else:
             return False
+
     def emit(self, c):
         self.left.emit(c)
         self.right.emit(c)
         c.COMPARE_OP('>=')
         print "COMPARE_OP(>=)"
 
-# infix("!=", 60); 
+
+# infix("!=", 60);
 class TokNotEq(TokTemplate):
     lbp = 60
+
     def leftd(self, left):
         self.left = left
         self.right = expression(60)
-        return self 
+        return self
+
     def eval(self):
         if self.left.eval() != self.right.eval():
             return True
         else:
             return False
+
     def emit(self, c):
         self.left.emit(c)
         self.right.emit(c)
         c.COMPARE_OP('!=')
         print "COMPARE_OP(!=)"
 
+
 # infix("==", 60)
 class TokIsEqual(TokTemplate):
     lbp = 60
+
     def leftd(self, left):
         self.left = left
         self.right = expression(60)
-        return self 
+        return self
+
     def eval(self):
         if self.left.eval() == self.right.eval():
             return True
         else:
-            return False    
+            return False
+
     def emit(self, c):
         self.left.emit(c)
         self.right.emit(c)
@@ -442,49 +538,61 @@ class TokIsEqual(TokTemplate):
         print "COMPARE_OP(==)"
 
 
-# infix("+", 110) 
+# infix("+", 110)
 class TokPlus(TokTemplate):
     lbp = 110
+
     def leftd(self, left):
         self.first = left
         self.second = expression(110)
         return self
+
     def eval(self):
         print "added %r and %r" % (self.first, self.second)
         return self.first.eval() + self.second.eval()
+
     def emit(self, c):
         self.first.emit(c)
         self.second.emit(c)
         c.BINARY_ADD()
         print "binary adding going down"
 
+
 # infix("-", 110)
 class TokMinus(TokTemplate):
     lbp = 110
+
     def nulld(self):
         return -expression(110)
+
     def leftd(self, left):
         self.first = left
         self.second = expression(110)
         return self
+
     def eval(self):
         print "subtracted %r from %r" % (self.second, self.first)
         return self.first.eval() - self.second.eval()
+
     def emit(self, c):
         self.first.emit(c)
         self.second.emit(c)
         c.BINARY_SUBTRACT()
 
-# infix("*", 120) 
+
+# infix("*", 120)
 class TokTimes(TokTemplate):
     lbp = 120
+
     def leftd(self, left):
         self.first = left
         self.second = expression(120)
         return self
+
     def eval(self):
         print "multiplied %r and %r" % (self.first, self.second)
         return self.first.eval() * self.second.eval()
+
     def emit(self, c):
         self.first.emit(c)
         self.second.emit(c)
@@ -494,30 +602,35 @@ class TokTimes(TokTemplate):
 # infix("/", 120)
 class TokDiv(TokTemplate):
     lbp = 120
+
     def leftd(self, left):
         self.first = left
         self.second = expression(120)
-        return self 
-    
+        return self
+
     def eval(self):
         print "divided %d by %d" % (self.first.eval(), self.second.eval())
         return self.first.eval() / self.second.eval()
-    
+
     def emit(self, c):
         self.first.emit(c)
         self.second.emit(c)
         c.BINARY_DIVIDE()
 
+
 # infix("%", 120)
 class TokModulo(TokTemplate):
     lbp = 120
+
     def leftd(self, left):
         self.first = left
         self.second = expression(120)
-        return self     
+        return self
+
     def eval(self):
         print "got remainder of %d modulo %d" % (self.first.eval(), self.second.eval())
         return self.first.eval() % self.second.eval()
+
     def emit(self, c):
         self.first.emit(c)
         self.second.emit(c)
@@ -527,29 +640,37 @@ class TokModulo(TokTemplate):
 # infix_r("^", 140)
 class TokPower(TokTemplate):
     lbp = 140
+
     def leftd(self, left):
         self.first = left
         self.second = expression(140)
-        return self 
+        return self
+
     def eval(self):
         print "raised %d to pow of %d" ** (self.first.eval(), self.second.eval())
         return self.first.eval() ** self.second.eval()
+
     def emit(self, c):
         self.first.emit(c)
         self.second.emit(c)
         c.BINARY_POWER()
 
 
-##### CLASSES FOR HIGH-BINDING POWER TOKENS #####
+"""
+CLASSES FOR HIGH-BINDING POWER TOKENS
+"""
+
 
 # symbol("[", 150)
 class TokLBrack(TokTemplate):
     lbp = 150
+
     def leftd(self, left):
         self.first = left
         self.second = expression()
         advance("]")
         return self
+
     def nulld(self):
         self.first = []
         if token.id != "]":
@@ -563,9 +684,11 @@ class TokLBrack(TokTemplate):
         advance("]")
         return self
 
+
 # symbol("(", 150)
 class TokLParen(TokTemplate):
     lbp = 150
+
     def nulld(self):
         expr = expression()
         # expect to see a right paren, if you don't, break
@@ -589,6 +712,7 @@ class TokLParen(TokTemplate):
     #         return self # tuple
     #     else:
     #         return self.first[0]
+
     def leftd(self, left):
         self.first = left
         self.second = []
@@ -601,25 +725,29 @@ class TokLParen(TokTemplate):
         advance(")")
         return self
 
+
 # symbol("=", 160)
 class TokAssign(TokTemplate):
     lbp = 160
-    def leftd (self, left):
+
+    def leftd(self, left):
         self.first = left
         self.second = expression(160)
         return self
-    
+
     def eval(self):
         symbol_table[self.first] = self.second.eval()
         print "Set", self.first, "to", self.second.eval()
-    
+
     def emit(self, c):
         self.second.emit(c)
         c.STORE_FAST(self.first)
 
+
 # symbol("{", 170)
 class TokLCBrace(TokTemplate):
     lbp = 0
+
     def nulld(self):
         self.first = []
         if token.type != "}":
@@ -636,16 +764,20 @@ class TokLCBrace(TokTemplate):
         return self
 
 
+"""
+CLASSES FOR STATEMENT TOKENS
+"""
 
-##### CLASSES FOR STATEMENT TOKENS #####
 
 # symbol("->", 140)
 class TokArrowed(TokStatement):
     lbp = 140
 
+
 # symbol(".", 150)
 class TokDot(TokStatement):
     lbp = 150
+
     def leftd(self, left):
         if token.type != "ID":
             SyntaxError("Expected an attribute identifier for dot notation.")
@@ -654,6 +786,7 @@ class TokDot(TokStatement):
         advance()
         return self
 
+
 # symbol(",", 150)
 class TokComma(TokStatement):
     lbp = 150
@@ -661,32 +794,44 @@ class TokComma(TokStatement):
 
 class TokColon(TokStatement):
     lbp = 0
+
     def stmtd(self):
         return self
+
     def eval(self):
-        pass        
+        pass
+
 
 class TokBang(TokStatement):
     lbp = 0
+
     def stmtd(self):
         return self
+
     def eval(self):
-        pass        
+        pass
 
 
 class TokGlobal(TokStatement):
     def stmtd(self):
         return self
+
     def eval(self):
-        pass        
+        pass
+
 
 class TokPipe(TokStatement):
     def stmtd(self):
         return self
+
     def eval(self):
         pass
 
-##### CLASSES FOR STATEMENT TOKENS -- RESERVED #####
+
+"""
+CLASSES FOR STATEMENT TOKENS -- RESERVED
+"""
+
 
 class TokUse(TokStatement):
     def stmtd(self):
@@ -754,14 +899,14 @@ class TokFunction(TokStatement):
         self.block = block()
         advance(TokRCBrace)
         return self
-    
+
     def eval(self):
-        pass 
-    
+        pass
+
     def emit(self, c):
         '''
-        code objects fun: 
-        funObj.co_filename represents 
+        code objects fun:
+        funObj.co_filename represents
         funObj.co_name will say module even though it could be function or class
         '''
         new_block = Code()
@@ -770,7 +915,7 @@ class TokFunction(TokStatement):
         print "\tMade a code object for this function:", new_block.co_filename
         new_block.co_argcount = len(self.args)
         self.block.emit(new_block)
-        
+
         # checks last code generated--if it's RETURN_VALUE(which peak represents with the number 83), then just keep going, but if not, return silently
         if list(new_block)[-1][1] != 83:
             print "LAST CODE WASN'T RETURNNNNNNNNNNNNNNNN"
@@ -791,17 +936,19 @@ class TokFunction(TokStatement):
         print "STORE_FAST(function obj)"
         dis(new_block.code())
 
-        
+
 class TokReturn(TokStatement):
     def stmtd(self):
         advance(TokReturn)
         if not isinstance(token, TokSemicolon):
             self.return_expr = expression(0)
+
     def eval(self):
-        if self.return_expr == None:
+        if self.return_expr is None:
             return None
         else:
             return self.first.eval()
+
     def emit(self, c):
         if hasattr(self, 'return_expr'):
             print "It has a return, really?"
@@ -813,6 +960,7 @@ class TokReturn(TokStatement):
         c.RETURN_VALUE()
         print "RETURN_VALUE"
 
+
 # EMC[]'s for loop
 class TokCall(TokStatement):
     def stmtd(self):
@@ -821,14 +969,14 @@ class TokCall(TokStatement):
         # keep id in memory though it'll be changed in every iteration
         advance(TokId)
         advance(TokItemIn)
-        # Different types of forms: #listA #someString #bounds(10)=list0-9 
-        # #bounds(3:6)=list3-6 #bounds(3:6!2)=list[3,5] #bounds(10!-1)=list0-9backwards            
+        # Different types of forms: #listA #someString #bounds(10)=list0-9
+        # #bounds(3:6)=list3-6 #bounds(3:6!2)=list[3,5] #bounds(10!-1)=list0-9backwards
         iter_list = []
         if isinstance(token, TokId):
             # save that identifier to iterate through later, evaluation of which is different based on type of variable
             self.iter_scope = token.value
             print "set iterscope to ", token.value
-        else: 
+        else:
             # create an identifier to iterate through later, based on bounds
             advance(TokBounds)
             advance(TokLParen)
@@ -860,11 +1008,11 @@ class TokCall(TokStatement):
         # # DOING THIS WITHOUT PYTHON LIST MANIPULATION for better visualization of translating it into bytecode based on what's really happening
         # # self.tempvar is what will be increasing after every iteration
         # # self.range is if just 1 number exists, create complete list
-        # # global 
+        # # global
         # iter_list = []
         # if hasattr(self, 'range'):
         #     x = 0
-        #     # TODO: write function to distinguish between if value is 
+        #     # TODO: write function to distinguish between if value is
         #     self.range = get_value(self.range)
         #     print self.range, "raaaaaaaaaaange"
         #     while x < self.range(c):
@@ -900,7 +1048,6 @@ class TokCall(TokStatement):
         # # after the loop is done, variable is removed from symbol_table so the name can be used again
         # del symbol_table[self.tempvar]
 
-
     def emit(self, c):
         c.SETUP_LOOP()
         # TODO: manipulate lists before sending into be put into the loop, this will be an if, else, because the process of loading the results into code gen will be different for manipulated ones (load each item as const, then build list, then get iter)
@@ -908,7 +1055,7 @@ class TokCall(TokStatement):
             if self.frequency.value < 0:
                 # reverse list
                 print "\t((freq. manip. to be added later))"
-            if self.frequency.value > 1 or self.frequency.value <-1:
+            if self.frequency.value > 1 or self.frequency.value < -1:
                 # take out every _ one
                 print "\t((freq. manip. to be added later))"
             # self.list = iter_list
@@ -948,15 +1095,16 @@ class TokCall(TokStatement):
         print "FOR_ITER(sets line to jump back to after every runthrough of the body)"
         # TODO: how does one get the correct variable name? do you pass it in with 'c' when emitting?
         c.STORE_FAST(self.tempvar)
-        print "STORE_FAST(temp var name:", self.tempvar,")"
+        print "STORE_FAST(temp var name:", self.tempvar, ")"
         # c.LOAD_FAST(self.tempvar)
         # print "LOAD_FAST", self.tempvar
         self.block.emit(c)
-        c.JUMP_ABSOLUTE(loop_start) # JUMPS TO FOR_ITER
+        c.JUMP_ABSOLUTE(loop_start)  # JUMPS TO FOR_ITER
         print "JUMP_ABSOLUTE", loop_start
         loop_end()
-        c.POP_BLOCK() # MARKS END OF LOOP BODY
+        c.POP_BLOCK()  # MARKS END OF LOOP BODY
         print "POP_BLOCK"
+
 
 class TokWhile(TokStatement):
     def stmtd(self):
@@ -972,10 +1120,10 @@ class TokWhile(TokStatement):
         self.block = block()
         advance(TokRCBrace)
         return self
-    
+
     def eval(self):
         pass
-    
+
     def emit(self, c):
         c.SETUP_LOOP()
         self.while_cond.emit(c)
@@ -989,11 +1137,11 @@ class TokWhile(TokStatement):
         print "FOR_ITER(sets line to jump back to after every runthrough of the body)"
         # TODO: how does one get the correct variable name? do you pass it in with 'c' when emitting?
         c.STORE_FAST(self.tempvar)
-        print "STORE_FAST(temp var name:", self.tempvar,")"
+        print "STORE_FAST(temp var name:", self.tempvar, ")"
         # c.LOAD_FAST(self.tempvar)
         # print "LOAD_FAST", self.tempvar
         self.block.emit(c)
-        c.JUMP_ABSOLUTE(loop_start) # JUMPS TO FOR_ITER
+        c.JUMP_ABSOLUTE(loop_start)  # JUMPS TO FOR_ITER
         print "JUMP_ABSOLUTE", loop_start
         loop_end()
 
@@ -1005,15 +1153,18 @@ class TokWhile(TokStatement):
 class TokItemIn(TokStatement):
     def stmtd(self):
         return self
+
     def eval(self):
         pass
+
     def emit(self, c):
         pass
 
+
 class TokLog(TokStatement):
     def stmtd(self):
-        advance(TokLog) # skip past 'log'
-        advance(TokLParen) # skip past l paren
+        advance(TokLog)  # skip past 'log'
+        advance(TokLParen)  # skip past l paren
         self.first = expression(0)
         advance(TokRParen)
         advance(TokSemicolon)
@@ -1029,10 +1180,11 @@ class TokLog(TokStatement):
         c.PRINT_NEWLINE()
         print "PRINT_NEWLINE"
 
+
 class TokNewlineLog(TokStatement):
     def stmtd(self):
-        advance(TokLog) # skip past 'log'
-        advance(TokLParen) # skip past l paren
+        advance(TokLog)  # skip past 'log'
+        advance(TokLParen)  # skip past l paren
         self.first = expression(0)
         advance(TokRParen)
         advance(TokSemicolon)
@@ -1046,7 +1198,8 @@ class TokNewlineLog(TokStatement):
         c.PRINT_ITEM()
         print "PRINT_ITEM"
 
-# symbol("if", 20) 
+
+# symbol("if", 20)
 # ternary form
 class TokIf(TokStatement):
     def stmtd(self):
@@ -1059,19 +1212,17 @@ class TokIf(TokStatement):
             advance(TokElif)
             self.elifcond = expression(0)
             advance(TokLCBrace)
-            while not isinstance(token, TokRCBrace): 
+            while not isinstance(token, TokRCBrace):
                 self.elifresult = statement()
             advance(TokRCBrace)
         # TODO: cannot yet do infinite elifs with this grammar
         if token.type == "ELSE":
             advance(TokElse)
             advance(TokLCBrace)
-            while not isinstance(token, TokRCBrace): 
+            while not isinstance(token, TokRCBrace):
                 self.elseresult = statement()
-            advance(TokRCBrace)    
+            advance(TokRCBrace)
         # evaluate the conditional
-        # if conditional true, 
-        # if next token is 'elif', 
         return self
 
     def eval(self):
@@ -1098,11 +1249,11 @@ class TokIf(TokStatement):
                     if self.elsecond.eval() is True:
                         print self.elsecond.eval(), "is true, so..."
                         self.elseresult.eval()
+
     def emit(self, c):
         self.ifcond.emit(c)
         if_false_start = c.POP_JUMP_IF_FALSE()
         print "JUMP_IF_FALSE"
-        
 
         self.ifresult.emit(c)
 
@@ -1114,50 +1265,57 @@ class TokIf(TokStatement):
         print "JUMP_FORWARD[past elifs, elses if true]"
         if_false_start()
         print "\t((else false jump lands here))"
-        
+
         if hasattr(self, 'elifcond'):
             self.elifcond.emit(c)
             elif_false_start = c.POP_JUMP_IF_FALSE()
             print "JUMP_IF_FALSE"
-        
+
             self.elifresult.emit(c)
-            
+
             # after_conditions()
             c(after_conditions.JUMP_FORWARD)
             # forward = c.JUMP_FORWARD()
             print "JUMP_FORWARD[past elifs, elses if true]"
             elif_false_start()
             print "\t((elif false jump lands here))"
-        
+
         if hasattr(self, 'elseresult'):
             self.elseresult.emit(c)
-        
+
         c(after_conditions)
         # forward()
         print "\t((if any cond True, jumps here after))"
         # c.LOAD_GLOBAL(self.ifcond.eval())
 
-# symbol("if", 20) 
+
+# symbol("if", 20)
 # ternary form
 class TokElif(TokStatement):
     def stmtd(self):
         return self
+
     def eval(self):
         pass
 
-# symbol("if", 20) 
+
+# symbol("if", 20)
 # ternary form
 class TokElse(TokStatement):
     def stmtd(self):
         return self
+
     def eval(self):
         pass
+
 
 class TokBounds(TokStatement):
     def stmtd(self):
         return self
+
     def eval(self):
         pass
+
 
 # EMC[]'s function call
 class TokSend(TokStatement):
@@ -1176,7 +1334,7 @@ class TokSend(TokStatement):
         self.fun_name = token.value
         advance(TokId)
         # grammar has optional assignment of results
-        if isinstance(token,TokArrowed):
+        if isinstance(token, TokArrowed):
             advance(TokArrowed)
             self.result_dump = token.value
             advance()
@@ -1185,7 +1343,7 @@ class TokSend(TokStatement):
 
     def eval(self):
         pass
-    
+
     def emit(self, c):
         c.LOAD_FAST(self.fun_name)
         print self.args
@@ -1200,6 +1358,7 @@ class TokSend(TokStatement):
         else:
             c.POP_TOP()
         # get function object from dictionary
+
 
 class TokVar(TokStatement):
     def stmtd(self):
@@ -1224,7 +1383,7 @@ class TokVar(TokStatement):
         print "added '%s' to the symbol_list" % self.newvar
         symbol_table[self.newvar] = self.setvalue.eval()
         print "added '%s' as key to the value of '%s'" % (self.newvar, self.setvalue.eval())
-    
+
     def emit(self, c):
         symbol_table[self.newvar] = self.setvalue.eval()
         print "\tSetting", self.newvar, "to", self.setvalue, " eval:", self.setvalue.eval()
@@ -1241,19 +1400,24 @@ class TokVar(TokStatement):
 class TokUserInput(TokStatement):
     def stmtd(self):
         return self
+
     def eval(self):
         pass
 
+
 class TokEmC(TokStatement):
     lbp = 0
+
     def stmtd(self):
         advance(TokEmC)
         advance(TokLBrack)
         advance(TokRBrack)
         advance(TokSemicolon)
         return self
+
     def eval(self):
         print "EmC[] is a super cool language--y'all might as well call me EmC ProgrHammer. Hope you're enjoying"
+
     def emit(self, c):
         c.PRINT_NEWLINE()
         c.PRINT_NEWLINE()
@@ -1271,53 +1435,70 @@ class TokEmC(TokStatement):
         c.PRINT_NEWLINE()
 
 
-##### CLASSES FOR TYPE TOKENS #####
+"""
+CLASSES FOR TYPE TOKENS
+"""
+
 
 class TokTypeNone(TokType):
     def stmtd(self):
         return self
+
     def eval(self):
         pass
+
 
 class TokTypeInt(TokType):
     def stmtd(self):
         return
+
     def eval(self):
         pass
+
 
 class TokTypeString(TokType):
     def stmtd(self):
         return self
+
     def eval(self):
         pass
+
 
 class TokTypeList(TokType):
     def stmtd(self):
         return self
+
     def eval(self):
         pass
+
 
 class TokTypeBool(TokType):
     def stmtd(self):
         return self
+
     def eval(self):
         pass
+
 
 class TokTypeMap(TokType):
     def stmtd(self):
         return self
+
     def eval(self):
         pass
 
 
-# METHODS FOR CAPTURING REGEX TOKENS, MAKING OBJECTS
-
-# METHODS FOR EXPRESSION TOKENS
-
+"""
+METHODS FOR CAPTURING REGEX TOKENS, MAKING OBJECTS
+------------------------------------
+METHODS FOR EXPRESSION TOKENS
+"""
 
 
 def t_NUMBER(t):
-    r'-?((\d+(\.\d+)?)|(\.\d+))' # should include neg/pos either '[nums]' or '[nums].[nums]' or '.[nums]''
+    # should include neg/pos either '[nums]'
+    # or '[nums].[nums]' or '.[nums]''
+    r'-?((\d+(\.\d+)?)|(\.\d+))'
     try:
         t.value = int(t.value)
     except ValueError:
@@ -1327,11 +1508,13 @@ def t_NUMBER(t):
     t = TokNumb(t.type, t.value, t.lexpos)
     return t
 
+
 def t_STRING(t):
     r'''("[^"]*")|('[^"]*')'''  # |(\'[^']*\')' # must have line count
     sansquotes = t.value[1:-1]
     t = TokString(t.type, sansquotes, t.lexpos)
     return t
+
 
 def t_EMCSQ(t):
     r'EmC'
@@ -1344,251 +1527,303 @@ def t_TRUE(t):
     t = TokTrue(t.type, t.value, t.lexpos)
     return t
 
+
 def t_FALSE(t):
     r'false'
     t = TokFalse(t.type, t.value, t.lexpos)
     return t
-    
+
+
 def t_EMPTY(t):
     r'empty'
     t = TokEmpty(t.type, t.value, t.lexpos)
     return t
+
 
 def t_SEMICOLON(t):
     r';'
     t = TokSemicolon(t.type, t.value, t.lexpos)
     return t
 
+
 def t_PIPE(t):
     r'\|'
     t = TokPipe(t.type, t.value, t.lexpos)
     return t
+
 
 def t_GLOBAL(t):
     r'\\/'
     t = TokGlobal(t.type, t.value, t.lexpos)
     return t
 
+
 def t_LPAREN(t):
     r'\('
     t = TokLParen(t.type, t.value, t.lexpos)
     return t
+
 
 def t_RPAREN(t):
     r'\)'
     t = TokRParen(t.type, t.value, t.lexpos)
     return t
 
+
 def t_LBRACK(t):
     r'\['
     t = TokLBrack(t.type, t.value, t.lexpos)
     return t
+
 
 def t_RBRACK(t):
     r'\]'
     t = TokRBrack(t.type, t.value, t.lexpos)
     return t
 
+
 def t_LCBRACE(t):
     r'\{'
     t = TokLCBrace(t.type, t.value, t.lexpos)
     return t
+
 
 def t_RCBRACE(t):
     r'\}'
     t = TokRCBrace(t.type, t.value, t.lexpos)
     return t
 
+
 def t_DOT(t):
     r'\.'
     t = TokDot(t.type, t.value, t.lexpos)
     return t
+
 
 def t_COMMA(t):
     r','
     t = TokComma(t.type, t.value, t.lexpos)
     return t
 
+
 def t_COLON(t):
     r':'
     t = TokColon(t.type, t.value, t.lexpos)
     return t
+
 
 def t_ARROWED(t):
     r'->'   # or '-->' ?
     t = TokArrowed(t.type, t.value, t.lexpos)
     return t
 
+
 def t_ISEQ(t):
     r'=='
     t = TokIsEqual(t.type, t.value, t.lexpos)
     return t
+
 
 def t_ASSIGN(t):
     r'='
     t = TokAssign(t.type, t.value, t.lexpos)
     return t
 
+
 def t_PLUS(t):
     r'\+'
     t = TokPlus(t.type, t.value, t.lexpos)
     return t
+
 
 def t_MINUS(t):
     r'-'
     t = TokMinus(t.type, t.value, t.lexpos)
     return t
 
+
 def t_TIMES(t):
     r'\*'
     t = TokTimes(t.type, t.value, t.lexpos)
     return t
+
 
 def t_DIVIDE(t):
     r'/'
     t = TokDiv(t.type, t.value, t.lexpos)
     return t
 
+
 def t_POWER(t):
     r'\^'
     t = TokPower(t.type, t.value, t.lexpos)
     return t
+
 
 def t_MODULO(t):
     r'%'
     t = TokModulo(t.type, t.value, t.lexpos)
     return t
 
+
 def t_LESS(t):
     r'<'
     t = TokLessThan(t.type, t.value, t.lexpos)
     return t
+
 
 def t_GREATER(t):
     r'>'
     t = TokGreaterThan(t.type, t.value, t.lexpos)
     return t
 
+
 def t_LESSEQ(t):
     r'<='
     t = TokLessOrEq(t.type, t.value, t.lexpos)
     return t
+
 
 def t_GREATEQ(t):
     r'>='
     t = TokGreaterOrEq(t.type, t.value, t.lexpos)
     return t
 
+
 def t_NOTEQ(t):
     r'!='
     t = TokNotEq(t.type, t.value, t.lexpos)
     return t
+
 
 def t_BANG(t):
     r'!'
     t = TokBang(t.type, t.value, t.lexpos)
     return t
 
-##### METHODS FOR STATEMENT TOKENS #####
+"""
+METHODS FOR STATEMENT TOKENS
+"""
+
 
 def t_USE(t):
     r'use'
     t = TokUse(t.type, t.value, t.lexpos)
     return t
 
+
 def t_FUN(t):
     r'fun'
     t = TokFunction(t.type, t.value, t.lexpos)
     return t
+
 
 def t_RETURN(t):
     r'return'
     t = TokReturn(t.type, t.value, t.lexpos)
     return t
 
+
 def t_CALL(t):
     r'call'
     t = TokCall(t.type, t.value, t.lexpos)
     return t
+
 
 def t_ITEMIN(t):
     r'itemin'
     t = TokItemIn(t.type, t.value, t.lexpos)
     return t
 
+
 def t_BOUNDS(t):
     r'bounds'
     t = TokBounds(t.type, t.value, t.lexpos)
-    return t    
+    return t
+
 
 def t_SEND(t):
     r'send'
     t = TokSend(t.type, t.value, t.lexpos)
     return t
 
+
 def t_LOG(t):
     r'log'
     t = TokLog(t.type, t.value, t.lexpos)
     return t
+
 
 def t_LOG(t):
     r'linelog'
     t = TokLog(t.type, t.value, t.lexpos)
     return t
 
+
 def t_IF(t):
     r'if'
     t = TokIf(t.type, t.value, t.lexpos)
     return t
+
 
 def t_ELIF(t):
     r'elif'
     t = TokElif(t.type, t.value, t.lexpos)
     return t
 
+
 def t_ELSE(t):
     r'else'
     t = TokElse(t.type, t.value, t.lexpos)
     return t
+
 
 def t_TYINT(t):
     r'int'
     t = TokTypeInt(t.type, t.value, t.lexpos)
     return t
 
+
 def t_TYSTRING(t):
     r'string'
     t = TokTypeString(t.type, t.value, t.lexpos)
     return t
+
 
 def t_TYLIST(t):
     r'list'
     t = TokTypeList(t.type, t.value, t.lexpos)
     return t
 
+
 def t_TYBOOL(t):
     r'bool'
     t = TokTypeBool(t.type, t.value, t.lexpos)
     return t
+
 
 def t_TYMAP(t):
     r'map'
     t = TokTypeMap(t.type, t.value, t.lexpos)
     return t
 
+
 def t_TYNONE(t):
     r'none'
     t = TokTypeNone(t.type, t.value, t.lexpos)
+
 
 def t_VAR(t):
     r'var'
     t = TokVar(t.type, t.value, t.lexpos)
     return t
 
+
 def t_WHILE(t):
     r'while'
     t = TokWhile(t.type, t.value, t.lexpos)
     return
+
 
 def t_DO(t):
     r'do'
@@ -1607,11 +1842,13 @@ def t_DO(t):
 
 ##### ID DEF MUST COME LAST SO RESERVED WORDS CAUGHT FIRST #####
 
+
 def t_ID(t):
     r'[a-zA-Z_][a-zA-Z0-9_]*'
     # t.type = reserved.get(t.value,'ID')
     t = TokId(t.type, t.value, t.lexpos)
     return t
+
 
 def get_value(mystery):
     print "SOOOOOLVING THE MYSTERIES OF WHAT KIND OF THING IS THIS"
@@ -1622,6 +1859,7 @@ def get_value(mystery):
     else:
         "WTF IS THIS AND WHY IS IT HEEEEEERE", x
     return mystery_solved
+
 
 def argument_list(list):
     while True:
@@ -1654,24 +1892,22 @@ def type_data():
         data = {}
         advance(TokLCBrace)
         tempkey = token.value
-        advance() # advance past whatever the key is
+        advance()  # advance past whatever the key is
         advance(TokArrowed)
         data[tempkey] = token.value
         # TODO: make dictionarys able to take things other than ID's, constants
-        advance() # advance past whatever the value is
+        advance()  # advance past whatever the value is
         while not isinstance(token, TokRCBrace):
             advance(TokComma)
             tempkey = token.value
-            advance() # advance past whatever the key is
+            advance()  # advance past whatever the key is
             advance(TokArrowed)
             data[tempkey] = token.value
-            advance() # advance past whatever the value is
+            advance()  # advance past whatever the value is
         advance(TokRCBrace)
-    else: 
+    else:
         data = expression(0)
     return data
-
-
 
 ################################################################################
 ################################################################################
@@ -1680,7 +1916,7 @@ def type_data():
 ################################################################################
 
 
-def em_lexer(file_name): # lexer,input_script):
+def em_lexer(file_name):  # lexer,input_script):
     global remain_tokens
     global constants_list
     global symbol_list
@@ -1694,9 +1930,10 @@ def em_lexer(file_name): # lexer,input_script):
     while True:
 
         tok = emcsqlexer.token()
-        
-        if not tok: break
-        
+
+        if not tok:
+            break
+
         # construct list of token objects to be parsed
         remain_tokens.append(tok)
 
@@ -1715,20 +1952,22 @@ def em_lexer(file_name): # lexer,input_script):
 # Printing pretty tokenized creations
 def display_lexing():
     # print "Raw EMC[] input: \n", input_script
-    print "\n\nTokens: \n",remain_tokens
+    print "\n\nTokens: \n", remain_tokens
     print "\n\nIn symbol table:"
     for key, value in symbol_table.iteritems():
         print key
     print "\n\nList of constants: \n", constants_list, "\n\n"
 
 
+"""
+METHODS FOR PARSING PROCESS
+"""
 
-##### METHODS FOR PARSING PROCESS #####
 
 class Program(object):
     def stmtd(self):
         # all the baby statement lists
-        self.chilluns = statement_list() 
+        self.chilluns = statement_list()
         return self
 
     def eval(self):
@@ -1739,13 +1978,15 @@ class Program(object):
     def emit(self, c):
         for child in self.chilluns:
             child.emit(c)
+
 
 class Block(object):
     def __init__(self, statements):
         self.chilluns = statements
+
     def stmtd(self):
         # all the baby statement lists
-        self.chilluns = block() 
+        self.chilluns = block()
         return self
 
     def eval(self):
@@ -1758,13 +1999,11 @@ class Block(object):
             child.emit(c)
 
 
-# debugging counter to see how many iterations have run
-depth = 0
 def parse():
     # set token to first of whole program
     advance()
     p = Program()
-    # sets its chilluns 
+    # sets its chilluns
     p.stmtd()
     return p
 
@@ -1778,12 +2017,14 @@ def statement_list():
             advance(TokSemicolon)
     return statements
 
+
 def block():
     stmts = []
     while not isinstance(token, TokRCBrace):
         stmts.append(statement())
     b = Block(stmts)
     return b
+
 
 def statement():
     # if token is statement, run it's statement denotation
@@ -1809,7 +2050,7 @@ def expression(rbp=0):
     left = t.nulld()
     # until you reach a next token that has a denotation less than that of the most recent token, return the leftd
     # "lbp is a vinding power controlling operator precedence; the higher the value, the tighter a token binds to the tokens that follow"
-    print "rbp: ", rbp, "token.lbp: ", token.type, token.lbp 
+    print "rbp: ", rbp, "token.lbp: ", token.type, token.lbp
     while (token.type != 'SEMICOLON') and (rbp < token.lbp):
         # when the lbp is higher than the previous token's binding power, continue expression to core of highest precedence
         # set prev token to the token with higher lbp
@@ -1840,13 +2081,12 @@ def next():
 
     global remain_tokens
     if remain_tokens:
-        # pop off the next token obj in the list and return it so it 
+        # pop off the next token obj in the list and return it so it
         # gets set to the global 'token'
         return remain_tokens.pop(0)
     else:
-        # makes 
+        # makes
         return TokLast('last', 'last', 'end')
-
 
 
 ################################################################################
@@ -1854,6 +2094,7 @@ def next():
 #######################       COMPILER TIME      ###############################
 ################################################################################
 ################################################################################
+
 
 def generate_bytecode():
     c = Code()
@@ -1876,9 +2117,9 @@ def run_tests():
     }
     '''
     input_test = '''
-    fun (int maxNum, string pointless, int wtf) -> fizzBuzz -> int { 
+    fun (int maxNum, string pointless, int wtf) -> fizzBuzz -> int {
         call num itemin bounds(0:maxNum!-1) {
-            if (num % 3 == 0) { 
+            if (num % 3 == 0) {
                 log("Fizz");
             }
             if (num % 5 == 0) {
@@ -1892,6 +2133,7 @@ def run_tests():
     var string|blah = "interrupting variables on top of stack and ish";
     send(5, "DERP", 100) -> fizzbuzz;
     '''
+
 
 def write_pyc(pref, code):
     f = open(pref + ".pyc", "w+")
