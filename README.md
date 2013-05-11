@@ -13,4 +13,4 @@ File Tree (In Progress):
   - lisp_interpreter: Went through and coded Norvig's Lispy interpreter from http://norvig.com/lispy.html and because it was fairly straightforward, most of my personal involvement was in commenting to make sure that I fully understood all that was taking place
     -->
 
-![em-ster egg screenshot](https://raw.github.com/emi1337/compi-lol-er/master/img.png)
+![em-ster egg screenshot](https://raw.github.com/emi1337/compi-lol-er/master/screenshots/compiler_easteregg.jpg)
