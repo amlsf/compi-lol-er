@@ -12,7 +12,8 @@ stmt : ID = expr
 stmt : return expr
 stmt : expr stmt
 stmt : use ID optmethod 
-stmt : E
+stmt : emcsq
+
 
 block : LCBRACE stmts RCBRACE
 
@@ -57,6 +58,7 @@ expr : NUM
 expr : STRING
 expr : LBRACK listems LBRACK
 expr : type
+expr : EMCSQ LBRACK RBRACK
 
 listitems : listitems COMMA listitems 
 listitems : listitems
