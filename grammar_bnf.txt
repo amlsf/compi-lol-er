@@ -1,41 +1,54 @@
 program : stmts
-
-stmts : stmt SEMICOLON stmts
-stmts : stmt block
-
-stmt : FUN ARROWED LPAREN optparams RPAREN ID ARROWED block
-stmt : if expr block
-stmt : if expr block else block
-stmt : CALL ID ITEMIN ID LBRACK optrange optfilter
-stmt : LPAREN optparams RPAREN ARROWED ID optmethod
-stmt : ID = expr
-stmt : return expr
-stmt : expr stmt
-stmt : use ID optmethod 
-stmt : emcsq
-
-
 block : LCBRACE stmts RCBRACE
 
+stmts : stmt SEMICOLON stmts
+stmts : stmt SEMICOLON
 
-optparams : params
-optparams : E
+stmt : loop
+stmt : fundef
+stmt : funcall
+stmt : cond
+stmt : LPAREN optparams RPAREN ARROWED ID optmethod
+stmt : ID ASSIGN expr
+stmt : RETURN expr
+stmt : expr stmt
+stmt : USE ID optmethod 
+stmt : emcsq
 
-params : type ID params
-params : E
+fundef : FUN LPAREN optparams RPAREN ARROWED ID ARROWED type block
+fundef : FUN LPAREN RPAREN ARROWED ID ARROWED type block
+funcall : SEND LPAREN optargs RPAREN ARROWED ID
+funcall : SEND LPAREN RPAREN ARROWED ID
 
-optrange : NUM COMMA NUM optdirect
-optrange : E
-optdirect : COMMA NUM
+optparams : param COMMA param
+optparams : param
+param : type ID
 
-optfilter : LBRACE NUM RBRACE
-optfilter : E
+cond : IF expr block
+cond : IF expr block ELSE block
+cond : IF expr block elifs ELSE block
+elifs : ELIF expr block elifs
+elifs : ELIF expr block
+
+loop : CALL ID ITEMIN bounds LPAREN optrange COLON optfilter RPAREN block
+loop : CALL ID ITEMIN bounds LPAREN optrange RPAREN block
+loop : CALL ID ITEMIN bounds LPAREN COLON COLON optfilter RPAREN block
+loop : CALL ID ITEMIN bounds LPAREN RPAREN block
+
+bounds : BOUNDS
+bounds : ID
+
+optargs : expr COMMA expr
+optargs : expr
+
+optrange : NUM COLON NUM
+optfilter : NUM
 
 optmethod : dot ID optmethod
 optmethod : E
 
 
-expr : LPAREN expr RPAREN
+expr : expr ASSIGN expr
 expr : expr PLUS expr
 expr : expr MINUS expr
 expr : expr TIMES expr
@@ -56,12 +69,9 @@ expr : TRUE
 expr : ID
 expr : NUM
 expr : STRING
-expr : LBRACK listems LBRACK
 expr : type
 expr : EMCSQ LBRACK RBRACK
 
-listitems : listitems COMMA listitems 
-listitems : listitems
 
 type : TYNONE
 type : TYINT
