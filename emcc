@@ -1920,7 +1920,6 @@ def em_lexer(file_name):  # lexer,input_script):
     global remain_tokens
     global constants_list
     global symbol_list
-    global symbol_list
     # Build the lexer
     emcsqlexer = lex.lex()
     # def tokenize():
