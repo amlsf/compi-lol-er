@@ -26,13 +26,13 @@ BNF & FizzBuzz language example
 Here resides the Backus-Naur Form grammar](https://github.com/emi1337/compi-lol-er/blob/master/grammar_bnf.txt) that outlines the structure and rules of my language.
 The most noticeable differences in my language from python involve the C-style blocks and line endings, loops, and function definition and invocation, which show the flow of where information(arguments) are going:
     
-    stmt --> FUN LPAREN optparams RPAREN ARROWED ID ARROWED type block
+stmt --> FUN LPAREN optparams RPAREN ARROWED ID ARROWED type block
         
-        ex.) [Line1](https://github.com/emi1337/compi-lol-er/blob/master/fizzbuzz.emc#L1)
+ex.) [Line1](https://github.com/emi1337/compi-lol-er/blob/master/fizzbuzz.emc#L1)
     
-    stmt --> SEND LPAREN optargs RPAREN ARROWED ID
-      
-       ex.) [Line11](https://github.com/emi1337/compi-lol-er/blob/master/fizzbuzz.emc#L11)
+stmt --> SEND LPAREN optargs RPAREN ARROWED ID
+    
+ex.) [Line11](https://github.com/emi1337/compi-lol-er/blob/master/fizzbuzz.emc#L11)
 
 Lexing
 ---------
@@ -48,7 +48,7 @@ Pratt Parsing
 ------------------
 I wrote a Pratt-style parser which uses an implementation of Pratt's algorithm, including [Douglas Crockford's extensions for parsing statements] (http://javascript.crockford.com/tdop/tdop.html) in order to extend my parser's functionality to include non-expressions. As a result, this technique is the same as recursive descent for most things, but uses the concept of 'token binding power' when dealing with expressions(precedence comparable to math's order of operations). Each token is given a number that describes how tightly it binds to the other tokens around it, eliminating the need for tricky operator precedence rules. Tthe binding power attributes are specific to each token  based on if it's a context in the expression as a prefix (ex. the - sign to imply negative numbers) or infix(ex. -, +, *, /) operator. The other primary difference from most parsing techniques is the use of the lexed tokens as nodes in the resultant parse tree.
 
-The standard recursive descent parser is kicked off in the (Program.stmtd method)[https://github.com/emi1337/compi-lol-er/blob/master/emcc#L1967]. Each token that begins a statement form has a .stmtd (for 'statement denotation') method that recursively parses the remainder of the tokens into a valid statement, holding onto relevant information (in the token's attributes) as it parses.
+The standard recursive descent parser is kicked off in the [Program.stmtd method](https://github.com/emi1337/compi-lol-er/blob/master/emcc#L1967). Each token that begins a statement form has a .stmtd (for 'statement denotation') method that recursively parses the remainder of the tokens into a valid statement, holding onto relevant information (in the token's attributes) as it parses.
 
 
 The parser assumes each program is composed of statements, first attempting to execute a token's .stmtd method if it has one, otherwise parsing the token stream as an expression, which is where Pratt's technique is used. For every token, Pratt's technique considers both the previous token and the following one, and comparing the left token's binding power (the object attribute called 'lbp' , the higher of which represents a higher precedence in terms of order of operations) to the one on the right. 
@@ -67,11 +67,11 @@ Code Generation
 ------------------------
 Code generation was much trickier, particularly given that there is little to no documentation on how to target the Python VM. In fact, the Python core team describes the VM as a moving target that can have significant changes between minor versions, so getting code generation to work was a combination of guesswork, reading the original C source, and reverse engineering using Python's built-in disassembler module.
 
-In general, Python executes all scripts on a stack-based VM whose opcodes can be found here: http://docs.python.org/2/library/dis.html. The opcodes aren't too different from what I've seen a typical instruction set to be, except for the absence of any mention of registers. Instead, Python is stack-based, passing arguments and return values on a single, globally available stack. As an example, to add two numbers, you push the two operands on the stack, then execute the BINARY_ADD opcode, which pops both operands off and pushes the resultant value onto the stack in their place. The same is generally true for function calls as well, with special handling of keyword arguments.
+In general, Python executes all scripts on a stack-based VM whose opcodes can be found [here](http://docs.python.org/2/library/dis.html). The opcodes aren't too different from what I've seen a typical instruction set to be, except for the absence of any mention of registers. Instead, Python is stack-based, passing arguments and return values on a single, globally available stack. As an example, to add two numbers, you push the two operands on the stack, then execute the BINARY_ADD opcode, which pops both operands off and pushes the resultant value onto the stack in their place. The same is generally true for function calls as well, with special handling of keyword arguments.
 
 However, the natively understood data types of the VM are Python objects, not simpler primitives like integers and floats. This makes the stack very flexible, allowing whole Python objects to be pushed onto it. Function calling actually happens by pushing a function object onto the stack followed by its arguments, then executing the CALL_FUNCTION opcode.
 
-The biggest conceptual roadblock in targeting the Python VM was understanding that the bytecode representation of a program is not a single sequence where functions definitions live at different memory addresses and program execution jumps back and forth between them. Instead, when compiled to bytecode, a python program is a group of 'code objects' that each contain the bytecode for a single function. Each of these code objects has a memory address space starting at 0 where the bytecodes are stored for execution. The entire program itself is then packed into a single top-level code object that needs to be loaded onto the stack prior to calling said function.
+For me, the biggest conceptual roadblock in targeting the Python VM was understanding that the bytecode representation of a program is not a single sequence where functions definitions live at different memory addresses and program execution jumps back and forth between them. Instead, when compiled to bytecode, a python program is a group of 'code objects' that each contain the bytecode for a single function. Each of these code objects has a memory address space starting at 0 where the bytecodes are stored for execution. The entire program itself is then packed into a single top-level code object that needs to be loaded onto the stack prior to calling said function.
 
 Basically, function invocation does not happen by jumping the program counter to the memory address of the beginning of the function. Instead, the program counter jumps _inside_ the code object for the function, starting execution at address zero of that code object.
 
