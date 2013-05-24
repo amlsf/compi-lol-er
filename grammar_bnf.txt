@@ -1,82 +1,91 @@
-program : stmts
-block : LCBRACE stmts RCBRACE
+program --> stmts
+block --> LCBRACE stmts RCBRACE
 
-stmts : stmt SEMICOLON stmts
-stmts : stmt SEMICOLON
+stmts --> stmt SEMICOLON stmts
+stmts --> stmt SEMICOLON
 
-stmt : loop
-stmt : fundef
-stmt : funcall
-stmt : cond
-stmt : LPAREN optparams RPAREN ARROWED ID optmethod
-stmt : ID ASSIGN expr
-stmt : RETURN expr
-stmt : expr stmt
-stmt : USE ID optmethod 
-stmt : emcsq
+stmt --> loop
+stmt --> fundef
+stmt --> funcall
+stmt --> cond
+stmt --> ID ASSIGN expr
+stmt --> RETURN expr
+stmt --> expr stmt
+stmt --> import
+stmt --> emcsq
+stmt --> VAR type PIPE ID ASSIGN expr
+stmt --> log LPAREN expr RPAREN
 
-fundef : FUN LPAREN optparams RPAREN ARROWED ID ARROWED type block
-fundef : FUN LPAREN RPAREN ARROWED ID ARROWED type block
-funcall : SEND LPAREN optargs RPAREN ARROWED ID
-funcall : SEND LPAREN RPAREN ARROWED ID
+fundef --> FUN LPAREN optparams RPAREN ARROWED ID ARROWED type block
+fundef --> FUN LPAREN RPAREN ARROWED ID ARROWED type block
+funcall --> SEND LPAREN optargs RPAREN ARROWED ID
+funcall --> SEND LPAREN RPAREN ARROWED ID
 
-optparams : param COMMA param
-optparams : param
-param : type ID
+optparams --> param COMMA param
+optparams --> param
+param --> type ID
 
-cond : IF expr block
-cond : IF expr block ELSE block
-cond : IF expr block elifs ELSE block
-elifs : ELIF expr block elifs
-elifs : ELIF expr block
+cond --> IF expr block
+cond --> IF expr block ELSE block
+cond --> IF expr block elifs ELSE block
+elifs --> ELIF expr block elifs
+elifs --> ELIF expr block
 
-loop : CALL ID ITEMIN bounds LPAREN optrange COLON optfilter RPAREN block
-loop : CALL ID ITEMIN bounds LPAREN optrange RPAREN block
-loop : CALL ID ITEMIN bounds LPAREN COLON COLON optfilter RPAREN block
-loop : CALL ID ITEMIN bounds LPAREN RPAREN block
+loop --> CALL ID ITEMIN bounds LPAREN optrange COLON optfilter RPAREN block
+loop --> CALL ID ITEMIN bounds LPAREN optrange RPAREN block
+loop --> CALL ID ITEMIN bounds LPAREN COLON COLON optfilter RPAREN block
+loop --> CALL ID ITEMIN bounds LPAREN RPAREN block
 
-bounds : BOUNDS
-bounds : ID
+bounds --> BOUNDS
+bounds --> ID
 
-optargs : expr COMMA expr
-optargs : expr
+optargs --> expr COMMA expr
+optargs --> expr
 
-optrange : NUM COLON NUM
-optfilter : NUM
+optrange --> expr COLON expr
+optfilter --> expr
 
-optmethod : dot ID optmethod
-optmethod : E
+log --> LOG
+log --> LINELOG
 
+import --> USE ID
+import --> USE ID optmethod
 
-expr : expr ASSIGN expr
-expr : expr PLUS expr
-expr : expr MINUS expr
-expr : expr TIMES expr
-expr : expr DIVIDE expr
-expr : expr POWER expr
-expr : expr MODULO expr
-expr : expr LESS expr
-expr : expr GREATER expr
-expr : expr LESSEQ expr
-expr : expr GREATEQ expr
-expr : expr ISEQ expr
-expr : expr AND expr
-expr : expr OR expr
-expr : expr NOT expr
-expr : expr NOTEQ expr
-expr : FALSE
-expr : TRUE
-expr : ID
-expr : NUM
-expr : STRING
-expr : type
-expr : EMCSQ LBRACK RBRACK
+optmethod --> dot ID optmethod
+optmethod --> dot ID
 
+expr --> LPAREN expr RPAREN
+expr --> ID ASSIGN expr
+expr --> expr PLUS expr
+expr --> expr MINUS expr
+expr --> expr TIMES expr
+expr --> expr DIVIDE expr
+expr --> expr POWER expr
+expr --> expr MODULO expr
+expr --> expr LESS expr
+expr --> expr GREATER expr
+expr --> expr LESSEQ expr
+expr --> expr GREATEQ expr
+expr --> expr ISEQ expr
+expr --> expr AND expr
+expr --> expr OR expr
+expr --> expr NOT expr
+expr --> expr NOTEQ expr
+expr --> FALSE
+expr --> TRUE
+expr --> ID
+expr --> NUM
+expr --> STRING
+expr --> list
+expr --> type
+expr --> EMCSQ LBRACK RBRACK
 
-type : TYNONE
-type : TYINT
-type : TYSTRING
-type : TYLIST
-type : TYBOOL
-type : TYMAP
+list --> LBRACK optargs RBRACK
+
+type --> TYNONE
+type --> TYINT
+type --> TYSTRING
+type --> TYLIST
+type --> TYBOOL
+type --> TYMAP
 
