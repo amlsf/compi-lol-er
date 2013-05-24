@@ -1,4 +1,4 @@
-compi-lol-er
+Compi-lol-er
 ============
 
 Writing a compiler for my made up language (EmC[], E=mc^2, Em's Compiler, emcetera emcetera) 
@@ -23,12 +23,16 @@ In summary, [emcc](https://github.com/emi1337/compi-lol-er/blob/master/emcc#L214
 
 BNF & FizzBuzz language example
 --------------------------------------------------
-Here resides the [Backus-Naur Form grammar](https://github.com/emi1337/compi-lol-er/blob/master/grammar_bnf.txt) that outlines the structure and rules of my language.
+Here resides the Backus-Naur Form grammar](https://github.com/emi1337/compi-lol-er/blob/master/grammar_bnf.txt) that outlines the structure and rules of my language.
 The most noticeable differences in my language from python involve the C-style blocks and line endings, loops, and function definition and invocation, which show the flow of where information(arguments) are going:
+    
     stmt --> FUN LPAREN optparams RPAREN ARROWED ID ARROWED type block
+        
         ex.) [Line1](https://github.com/emi1337/compi-lol-er/blob/master/fizzbuzz.emc#L1)
+    
     stmt --> SEND LPAREN optargs RPAREN ARROWED ID
-        ex.) [Line11(]https://github.com/emi1337/compi-lol-er/blob/master/fizzbuzz.emc#L11)
+      
+       ex.) [Line11](https://github.com/emi1337/compi-lol-er/blob/master/fizzbuzz.emc#L11)
 
 Lexing
 ---------
