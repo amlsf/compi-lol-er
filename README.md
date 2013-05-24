@@ -81,7 +81,7 @@ To create a .pyc file, I used the marshal library python provides. I start [here
 
 The exact format of the .pyc is version specific. Aside from the timestamp and the secret key, the format of the marshalled code object is completely undocumented. As a result, we have to trust that if the code object is assembled correctly, and test accordingly (and consistently over time).
 
-FinalThoughts
+Final Thoughts
 --------------------------------
 I used the marshalling library and bytecode assembler as a result of the the in-memory structure and behavior of Python objects being completely undocumented. Therefore, my compiler is limited--because we cannot construct code objects in memory using the proper serialization, nor can we write the bytecodes to a file without the help of marshalling, my compiler can only target the Python VM if it is written in Python to begin with. As it stands, my compiler cannot be written in any other language. However, during the process of compiling to x86, this will no longer be an issue. 
 
